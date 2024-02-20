@@ -1,45 +1,39 @@
 import nltk
-import re
+from nltk.tokenize import sent_tokenize
 
-# Load the Unicode data from the file
-with open('input.txt', 'r', encoding='utf-8') as f:
-    data = f.read()
+# Ensure you have downloaded the Punkt Tokenizer Models using nltk.download('punkt')
 
-# Tokenize the data into sentences
-sentences = nltk.tokenize.sent_tokenize(data)
+def read_unicode_file(filename):
+    with open(filename, 'r', encoding='utf-8') as file:
+        return file.read()
 
-# Initialize an empty list to store the blocks
-blocks = []
+def group_sentences(sentences, max_length=500):
+    blocks = []
+    block = ''
+    for sentence in sentences:
+        if len(block) + len(sentence) > max_length:
+            blocks.append(block)
+            block = ''
+        else:
+            if block:
+                block += ' '
+            block += sentence
+    if block:
+        blocks.append(block)
+    return blocks
 
-# Initialize a variable to store the current block
-current_block = ''
+# Read Unicode text file
+text = read_unicode_file('input.txt')
 
-# Iterate over the sentences
+# Tokenize into sentences
+sentences = sent_tokenize(text)
+print("Sentences:")
 for sentence in sentences:
-    # Add the sentence to the current block
-    current_block += sentence
-
-    # If the current block is 500 characters or less, add it to the list of blocks
-    if len(current_block) <= 500:
-        blocks.append(current_block)
-        current_block = ''
-    else:
-        # If the current block is more than 500 characters, split it into two blocks
-        while len(current_block) > 500:
-            split_point = current_block[:500].rfind(' ')
-            if split_point == -1:
-                split_point = 500
-            blocks.append(current_block[:split_point])
-            current_block = current_block[split_point:]
-
-# Print the sentences
-print('Sentences:')
-for sentence in sentences:
-    print("*** sentence ***")
+    print('*** Sentence:')
     print(sentence)
 
-# Print the blocks
-print('\nBlocks:')
-for block in blocks:
-    print("*** block ***")
-    print(block)
+# Group sentences into blocks
+blocks = group_sentences(sentences)
+print("\nBlocks:")
+for i, block in enumerate(blocks):
+    print(f"Block {i+1}: {block}")
