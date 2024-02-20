@@ -32,7 +32,7 @@ for sentence in sentences:
     print('*** Sentence:')
     print(sentence)
 
-# Group sentences into blocks
+#Group sentences into blocks
 blocks = group_sentences(sentences)
 print("\nBlocks:")
 for i, block in enumerate(blocks):
