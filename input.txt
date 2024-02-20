@@ -1,0 +1,27 @@
+Due to the massive size of Large Language Models (LLMs), quantization has become an essential technique to run them efficiently. By reducing the precision of their weights, you can save memory and speed up inference while preserving most of the model’s performance. Recently, 8-bit and 4-bit quantization unlocked the possibility of running LLMs on consumer hardware. Coupled with the release of Llama models and parameter-efficient techniques to fine-tune them (LoRA, QLoRA), this created a rich ecosystem of local LLMs that are now competing with OpenAI’s GPT-3.5 and GPT-4.
+Currently, there are three main quantization techniques: NF4, GPTQ, and GGML. NF4 is a static method used by QLoRA to load a model in 4-bit precision to perform fine-tuning. In a previous article, we explored the GPTQ method and quantized our own model to run it on a consumer GPU. In this article, we will introduce the GGML technique, see how to quantize Llama models, and provide tips and tricks to achieve the best results.
+You can find the code on Google Colab and GitHub.
+What is GGML?
+GGML is a C library focused on machine learning. It was created by Georgi Gerganov, which is what the initials “GG” stand for. This library not only provides foundational elements for machine learning, such as tensors, but also a unique binary format to distribute LLMs.
+This format recently changed to GGUF. This new format is designed to be extensible, so that new features shouldn’t break compatibility with existing models. It also centralizes all the metadata in one file, such as special tokens, RoPE scaling parameters, etc. In short, it answers a few historical pain points and should be future-proof. For more information, you can read the specification at this address. In the rest of the article, we will call “GGML models” all models that either use GGUF or previous formats.
+GGML was designed to be used in conjunction with the llama.cpp library, also created by Georgi Gerganov. The library is written in C/C++ for efficient inference of Llama models. It can load GGML models and run them on a CPU. Originally, this was the main difference with GPTQ models, which are loaded and run on a GPU. However, you can now offload some layers of your LLM to the GPU with llama.cpp. To give you an example, there are 35 layers for a 7b parameter model. This drastically speeds up inference and allows you to run LLMs that don’t fit in your VRAM.
+If command-line tools are your thing, llama.cpp and GGUF support have been integrated into many GUIs, like oobabooga’s text-generation-web-ui, koboldcpp, LM Studio, or ctransformers. You can simply load your GGML models with these tools and interact with them in a ChatGPT-like way. Fortunately, many quantized models are directly available on the Hugging Face Hub. You’ll quickly notice that most of them are quantized by TheBloke, a popular figure in the LLM community.
+In the next section, we will see how to quantize our own models and run them on a consumer GPU.
+How to quantize LLMs with GGML?
+Let’s look at the files inside of TheBloke/Llama-2-13B-chat-GGML repo. We can see 14 different GGML models, corresponding to different types of quantization. They follow a particular naming convention: “q” + the number of bits used to store the weights (precision) + a particular variant. Here is a list of all the possible quant methods and their corresponding use cases, based on model cards made by TheBloke:
+    q2_k: Uses Q4_K for the attention.vw and feed_forward.w2 tensors, Q2_K for the other tensors.
+    q3_k_l: Uses Q5_K for the attention.wv, attention.wo, and feed_forward.w2 tensors, else Q3_K
+    q3_k_m: Uses Q4_K for the attention.wv, attention.wo, and feed_forward.w2 tensors, else Q3_K
+    q3_k_s: Uses Q3_K for all tensors
+    q4_0: Original quant method, 4-bit.
+    q4_1: Higher accuracy than q4_0 but not as high as q5_0. However has quicker inference than q5 models.
+    q4_k_m: Uses Q6_K for half of the attention.wv and feed_forward.w2 tensors, else Q4_K
+    q4_k_s: Uses Q4_K for all tensors
+    q5_0: Higher accuracy, higher resource usage and slower inference.
+    q5_1: Even higher accuracy, resource usage and slower inference.
+    q5_k_m: Uses Q6_K for half of the attention.wv and feed_forward.w2 tensors, else Q5_K
+    q5_k_s: Uses Q5_K for all tensors
+    q6_k: Uses Q8_K for all tensors
+    q8_0: Almost indistinguishable from float16. High resource use and slow. Not recommended for most users.
+As a rule of thumb, I recommend using Q5_K_M as it preserves most of the model’s performance. Alternatively, you can use Q4_K_M if you want to save some memory. In general, K_M versions are better than K_S versions. I cannot recommend Q2_K or Q3_* versions, as they drastically decrease model performance.
+Now that we know more about the quantization types available, let’s see how to use them on a real model. You can execute the following code on a free T4 GPU on Google Colab. The first step consists of compiling llama.cpp and installing the required libraries in our Python environment.

@@ -1,0 +1,7 @@
+PROMPT: Write Python script to tokenize Unicode data stream into sentences using NLTK library. Processed data are being retrieved from Unicode text file 'input.txt', then stored into list variable, and print out to display each sentence stored in list variable to output. Then group sentences in blocks with eache block size is 500 characters long or less. Print content of blocks as well.
+MODEL: deepseek-coder-7b-instruct-v1.5-Q6_K.gguf
+SANDBOX: SentenceParser.py
+
+PROMPT: Write python script that implements the classic Snake game using pygame library.
+MODEL: deepseek-coder-7b-instruct-v1.5-Q6_K.gguf
+SANDBOX:  Snake00.py
