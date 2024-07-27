@@ -1,0 +1,17 @@
+Variable01 = 222;
+Variable02 = 22;
+Variable03 = "TEST22";
+Variable04 = "TEST22";
+Variable05 = "TEST222";
+
+
+
+
+
+
+
+
+
+
+
+

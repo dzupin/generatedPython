@@ -1,0 +1,15 @@
+Variable01 = 777;
+Variable02 = 421000;
+Variable03 = "TEST1230";
+Variable04 = "TEST540";
+Variable05 = "TEST6660";
+
+
+
+
+
+
+
+
+
+
