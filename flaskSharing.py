@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for
 import os
+import subprocess
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'C:/QA/generatedPython'
+UPLOAD_FOLDER = 'C:/QA/generatedPython'  # Make sure this points to your .git directory
 ALLOWED_EXTENSIONS = {'txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -36,6 +37,13 @@ def edit_file(filename, title):
         content = '\n'.join([line.rstrip('\n') for line in content.splitlines()])
         with open(file_path, 'w') as file:
             file.write(content)
+
+        # Commit and push changes to the repository
+        commit_message = 'Updated {}'.format(filename)
+        subprocess.run(['git', 'add', file_path], cwd=app.config['UPLOAD_FOLDER'], check=True)
+        subprocess.run(['git', 'commit', '-m', commit_message], cwd=app.config['UPLOAD_FOLDER'], check=True)
+        subprocess.run(['git', 'push', 'origin', 'main'], cwd=app.config['UPLOAD_FOLDER'], check=True)
+
         # Redirect to the index page after saving changes
         return redirect(url_for('index'))
 
