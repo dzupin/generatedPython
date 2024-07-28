@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>File Editor</title>
+     <meta charset="UTF-8">
+     <title>File Editor</title>
 </head>
 <body>
-    <h1>Welcome to the File Editor</h1>
-    <ul>
-        <li><a href="/file1">Edit configExample.txt</a></li>
-        <li><a href="/file2">Edit configExample2.txt</a></li>
-        <li><a href="/file3">Edit configExample3.txt</a></li>
-    </ul>
+     <h1>Welcome to the File Editor</h1>
+     <ul>
+         <li><a href="/file1">Edit configExample.txt</a></li>
+         <li><a href="/file2">Edit configExample2.txt</a></li>
+         <li><a href="/file3">Edit configExample3.txt</a></li>
+     </ul>
+     <!-- Add a button to stop the server -->
+     <form action="/stop" method="post">
+         <button type="submit">Stop Server</button>
+     </form>
 </body>
 </html>
