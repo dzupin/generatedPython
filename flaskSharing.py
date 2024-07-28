@@ -67,14 +67,7 @@ def edit_file(filename, title):
 
     return render_template('edit.html', content=content, title=title)
 
-def signal_handler(sig, frame):
-    global stop_event
-    print('You pressed Ctrl+C!')
-    stop_event = True
-    sys.exit(0)
 
 if __name__ == '__main__':
-    # Register the signal handler for SIGINT (Ctrl+C)
-    signal.signal(signal.SIGINT, signal_handler)
     app.run(debug=True)
 
