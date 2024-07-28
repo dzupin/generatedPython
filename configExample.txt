@@ -1,9 +1,8 @@
-Variable01 = 77701;
+Variable01 = 777001;
 Variable02 = 4210001;
 Variable03 = "TEST12301";
 Variable04 = "TEST54011";
 Variable05 = "TEST66601";
-
 
 
 
