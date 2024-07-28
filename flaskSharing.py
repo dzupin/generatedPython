@@ -1,8 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for
 import os
 import subprocess
 import signal
-import sys
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'C:/QA/generatedPython'   # Make sure this points to your .git directory
@@ -69,5 +68,5 @@ def edit_file(filename, title):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=1971)
 
