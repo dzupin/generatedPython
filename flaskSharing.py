@@ -4,7 +4,7 @@ import subprocess
 import signal
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'C:/QA/generatedPython'   # Make sure this points to your .git directory
+UPLOAD_FOLDER = '/QA/generatedPython'   # Make sure this points to your .git directory
 ALLOWED_EXTENSIONS = {'.txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -40,7 +40,7 @@ def stop_server():
     pid = os.getpid()
     # Send a SIGTERM signal to the Flask server process
     os.kill(pid, signal.SIGTERM)
-    return "Server is stopping..."
+    return "Server shutdown performed "
 
 def edit_file(filename, title):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
