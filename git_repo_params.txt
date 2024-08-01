@@ -1,0 +1,14 @@
+# Initialize variables with default values
+# Set default values for directory location and Git repository string
+
+default_directory_locationX = '/QA/EZTRV116QA'
+default_directory_location = '/QA/EZTRV116'
+
+default_git_repository_stringX = 'git@github.gwd.broadcom.net:EASYTAT01/EZTRV116QA.git'
+default_git_repository_string = 'git@github.gwd.broadcom.net:EASYTAT01/EZTRV116.git'
+
+default_branchX = 'master'
+default_branch = 'coverity_20220120'
+default_branchX = 'Endevor_Fixes_Coverity_20200120'
+
+referenced_directory_location = '/QA/EZTRV116QA'
