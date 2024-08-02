@@ -1,9 +1,8 @@
 Variable01 = 333;
 Variable02 = 42330333;
-Variable03 = "TEST3303";
+Variable03 = "ConfigAdjustment";
 Variable04 = "TEST3303;
 Variable05 = "TEST33303";
-
 
 
 
