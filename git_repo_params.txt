@@ -1,5 +1,5 @@
 # Initialize variables with default values
-# Set default values for directory location and Git repository string
+# Set default values for internal directory location and Git repository branch
 
 default_directory_locationX = '/QA/EZTRV116QA'
 default_directory_location = '/QA/EZTRV116'
