@@ -5,15 +5,15 @@
      <title>File Editor</title>
 </head>
 <body>
-     <h1>Welcome to the File Editor</h1>
+     <h1>Configuration Editor</h1>
      <ul>
-         <li><a href="/file1">Edit configExample.txt</a></li>
-         <li><a href="/file2">Edit configExample2.txt</a></li>
-         <li><a href="/file3">Edit configExample3.txt</a></li>
+         <li><a href="/file1" title="Update git repository location used for linux build">Edit git_repo_params.txt</a></li>
+          <li><a href="/file2" title="Placeholder for editing config file">Edit configSettings.txt</a></li>
+          <li><a href="/file3" title="Placeholder for editing another file">Edit configAdjustment.txt</a></li>
      </ul>
      <!-- Add a button to stop the server -->
      <form action="/stop" method="post">
-         <button type="submit">Stop Server</button>
+         <button type="submit" title="Stop Configuration processes, to allow the next stage in Jenkins pipeline to take place.">Stop Configuration</button>
      </form>
 </body>
 </html>

@@ -4,7 +4,7 @@ import subprocess
 import signal
 
 app = Flask(__name__)
-UPLOAD_FOLDER = '/QA/generatedPython'   # Make sure this points to your .git directory
+UPLOAD_FOLDER = '/QA/JenkinsPipelineJobs'  # Make sure this points to your .git directory
 ALLOWED_EXTENSIONS = {'.txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -22,15 +22,15 @@ def index():
 
 @app.route('/file1', methods=['GET', 'POST'])
 def edit_file1():
-    return edit_file('configExample.txt', 'Edit configExample.txt')
+    return edit_file('git_repo_params.txt', 'Edit git_repo_params.txt')
 
 @app.route('/file2', methods=['GET', 'POST'])
 def edit_file2():
-    return edit_file('configExample2.txt', 'Edit configExample2.txt')
+    return edit_file('configSettings.txt', 'Edit configSettings.txt')
 
 @app.route('/file3', methods=['GET', 'POST'])
 def edit_file3():
-    return edit_file('configExample3.txt', 'Edit configExample3.txt')
+    return edit_file('configAdjustment.txt', 'Edit configAdjustment.txt')
 
 @app.route('/stop', methods=['POST'])
 def stop_server():
@@ -40,7 +40,7 @@ def stop_server():
     pid = os.getpid()
     # Send a SIGTERM signal to the Flask server process
     os.kill(pid, signal.SIGTERM)
-    return "Server shutdown performed "
+    return "Server shutdown ..."
 
 def edit_file(filename, title):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -54,9 +54,14 @@ def edit_file(filename, title):
 
         # Commit and push changes to the repository
         commit_message = 'Updated {}'.format(filename)
-        subprocess.run(['git', 'add', file_path], cwd=app.config['UPLOAD_FOLDER'], check=True)
-        subprocess.run(['git', 'commit', '-m', commit_message], cwd=app.config['UPLOAD_FOLDER'], check=True)
-        subprocess.run(['git', 'push', 'origin', 'main'], cwd=app.config['UPLOAD_FOLDER'], check=True)
+        try:
+            subprocess.run(['git', 'add', file_path], cwd=app.config['UPLOAD_FOLDER'])
+            subprocess.run(['git', 'commit', '-m', commit_message], cwd=app.config['UPLOAD_FOLDER'])
+            subprocess.run(['git', 'push', 'origin', 'main'], cwd=app.config['UPLOAD_FOLDER'])
+        except subprocess.CalledProcessError as e:
+            # Handle the error here, for example:
+            print(f"An error occurred while executing git command: {e}")
+            # You can also redirect the user to an error page or display a message
 
         # Redirect to the index page after saving changes
         return redirect(url_for('index'))
@@ -68,5 +73,4 @@ def edit_file(filename, title):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=1971)
-
+    app.run(debug=True, port=5050)

@@ -1,6 +1,5 @@
-Variable01 = 220222;
+Variable01 = 220222202;
 Variable02 = 22022;
-Variable03 = "TEST22";
+Variable03 = "configSettings.txt;
 Variable04 = "TEST2";
-Variable05 = "TEST22202";
-
+Variable05 = "TEST222020";

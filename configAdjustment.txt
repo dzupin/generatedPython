@@ -1,7 +1,5 @@
-Variable01 = 333;
-Variable02 = 42330333;
-Variable03 = "ConfigAdjustment";
-Variable04 = "TEST3303;
-Variable05 = "TEST33303";
-
-
+Variable01 = 220222202;
+Variable02 = 22022;
+Variable03 = "configAdjustment.txt";
+Variable04 = "TEST2";
+Variable05 = "TEST222020";
