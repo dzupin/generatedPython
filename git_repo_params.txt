@@ -18,4 +18,4 @@ default_branch = 'master'
 referenced_directory_location = '/QA/EZTRV116QA'
 
 # Will determine whether git clone or git update is used when code repo is already present
-overwrite_existing_directory = 'true2'
+overwrite_existing_directory = 'true'

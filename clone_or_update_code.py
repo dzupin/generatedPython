@@ -115,11 +115,11 @@ def load_config_from_file(file_path):
 
 def rename_directory(source, destination):
     """
-    Rename a directory if source and destination are different.
+    Rename a directory if source and destination are different to assure cloned code to be in pre-determined location
 
     Args:
-        source (str): Source directory path
-        destination (str): Destination directory path
+        source (str): Source directory path. Determined by git clone or by git update operations
+        destination (str): Destination directory path a.k.a REFERENCED_DIRECTORY that is hard-coded in external routines
 
     Returns:
         bool: True if successful, False otherwise
@@ -129,7 +129,7 @@ def rename_directory(source, destination):
         return False
 
     if source == destination:
-        print("Source and destination are the same. Skipping rename.")
+        print("Directory name of cloned repo matches expected directory name. Skipping rename.")
         return True
 
     # If destination exists, remove it first (if we got this far, we're in forced mode)
