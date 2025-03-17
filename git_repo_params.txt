@@ -12,3 +12,5 @@ default_branchX = 'coverity_20220120'
 default_branchX = 'Endevor_Fixes_Coverity_20200120'
 
 referenced_directory_location = '/QA/EZTRV116QA'
+
+overwrite_existing_directory = 'true'

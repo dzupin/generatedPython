@@ -5,7 +5,7 @@ import argparse
 import sys
 from subprocess import CalledProcessError
 
-input_file_path = '/QA/JenkinsPipelineJobs/git_repo_params.txt'
+input_file_path = '/QA/generatedPython/git_repo_params.txt'
 
 # Set default values for directory location and Git repository string
 default_directory_location = '/QA/EZTRV116QA'    # path should match / be consistent with git repository name
@@ -19,6 +19,8 @@ default_branch = 'master'  # Default branch name
 #default_branch = 'Endevor_Fixes_Coverity_20200120'  # New branch for merged changes of  EZTRV116.git
 
 referenced_directory_location = '/QA/EZTRV116QA'  # Should be constant because SHATU will assume this specific location
+
+overwrite_existing_directory = 'false'    # If set to true then original directory will be deleted to enforce git clone operation (instead of using git update)
 
 # To use default values from command line: python script.py
 # To specify directory and repository : python script.py --directory /path/to/your/directory --repository https://github.com/username/repository.git
@@ -68,6 +70,8 @@ try:
                 globals()[variable_name] = value
             elif variable_name == 'processed_directory_location':
                 globals()[variable_name] = value
+            elif variable_name == 'overwrite_existing_directory':
+                globals()[variable_name] = value
 
 except FileNotFoundError:
     print(f"The input file {input_file_path} was not found.")
@@ -81,13 +85,15 @@ parser = argparse.ArgumentParser(description='Clone or pull a Git repository.')
 parser.add_argument('--directory', '-d', default=default_directory_location, help='The directory where the repository will be cloned or pulled. Default is ' + default_directory_location)
 parser.add_argument('--repository', '-r', default=default_git_repository_string, help='The URL of the Git repository. Default is ' + default_git_repository_string)
 parser.add_argument('--branch', '-b', default=default_branch, help='The branch to clone or pull from. Default is ' + default_branch)
+parser.add_argument('--forced', '-f', default=overwrite_existing_directory, help='Forced to delete and then recreate existing directory ' + overwrite_existing_directory)
 
 args = parser.parse_args()
 
 # Check if the default directory exists and delete it if it does (to allow different git repos use same directory structure)
 if os.path.exists(referenced_directory_location) and os.path.isdir(referenced_directory_location):
-    print(f"Deleting directory: {referenced_directory_location}")
-    shutil.rmtree(referenced_directory_location)
+    if args.forced.lower() == 'true':
+        print(f"Because argument force is active by setting overwrite_existing_directory to true, deleting directory: {referenced_directory_location}")
+        shutil.rmtree(referenced_directory_location)
 
 
 # Call the function with the parsed arguments
