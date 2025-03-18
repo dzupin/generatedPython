@@ -3,7 +3,7 @@
 
 # Expected directory location for cloned repository
 default_directory_location = '/QA/EZTRV116QA'
-#default_directory_locationX = '/QA/EZTRV116'
+#default_directory_location = '/QA/EZTRV116'
 
 # Git repository address to be used
 #default_git_repository_string = 'git@github.gwd.broadcom.net:EASYTAT01/EZTRV116QA.git'
@@ -12,7 +12,7 @@ default_git_repository_string = 'git@github.gwd.broadcom.net:EASYTAT01/EZTRV116.
 # Branch of code repository to be used
 default_branch = 'master'
 #default_branch = 'coverity_20220120'
-#default_branchX = 'Endevor_Fixes_Coverity_20200120'
+#default_branch = 'Endevor_Fixes_Coverity_20200120'
 
 # Directory location for cloned repository that is expected by external code
 referenced_directory_location = '/QA/EZTRV116QA'
