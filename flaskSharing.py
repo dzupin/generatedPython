@@ -4,7 +4,7 @@ import subprocess
 import signal
 
 app = Flask(__name__)
-UPLOAD_FOLDER = '/QA/JenkinsPipelineJobs'  # Make sure this points to your .git directory
+UPLOAD_FOLDER = '/QA/generatedPython'  # Make sure this points to your .git directory
 ALLOWED_EXTENSIONS = {'.txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -12,25 +12,31 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Flag to indicate if the application should stop
 stop_event = False
 
+
 def allowed_file(filename):
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
+
 @app.route('/file1', methods=['GET', 'POST'])
 def edit_file1():
     return edit_file('git_repo_params.txt', 'Edit git_repo_params.txt')
+
 
 @app.route('/file2', methods=['GET', 'POST'])
 def edit_file2():
     return edit_file('configSettings.txt', 'Edit configSettings.txt')
 
+
 @app.route('/file3', methods=['GET', 'POST'])
 def edit_file3():
     return edit_file('configAdjustment.txt', 'Edit configAdjustment.txt')
+
 
 @app.route('/stop', methods=['POST'])
 def stop_server():
@@ -42,10 +48,17 @@ def stop_server():
     os.kill(pid, signal.SIGTERM)
     return "Server shutdown ..."
 
+
 def edit_file(filename, title):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
     if request.method == 'POST':
+        # Check which button was clicked
+        if request.form.get('action') == 'Exit without saving changes':
+            # User chose to exit without saving, redirect to index
+            return redirect(url_for('index'))
+
+        # User chose to save changes (or default action)
         content = request.form['content']
         # Remove any extra newline characters at the end of each line
         content = '\n'.join([line.rstrip('\n') for line in content.splitlines()])
