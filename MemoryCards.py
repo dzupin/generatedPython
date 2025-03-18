@@ -452,10 +452,10 @@ def draw_stats_screen():
             line_text = font_medium.render(line, True, TEXT_COLOR)
             screen.blit(line_text, (panel_x + 30, y_pos))
 
-    # Draw close button
+    # Draw close button OUTSIDE the panel
     button_width, button_height = 150, 40
-    button_x = panel_x + (panel_width - button_width) // 2
-    button_y = panel_y + panel_height - button_height - 20
+    button_x = panel_x + panel_width + 20  # Position to the right of the panel
+    button_y = panel_y  # Align with the top of the panel
 
     # Check if mouse is over button
     mouse_pos = pygame.mouse.get_pos()
@@ -504,12 +504,13 @@ while running:
                 panel_y = (WINDOW_HEIGHT - panel_height) // 2
 
                 button_width, button_height = 150, 40
-                button_x = panel_x + (panel_width - button_width) // 2
-                button_y = panel_y + panel_height - button_height - 20
+                button_x = panel_x + panel_width + 20  # Updated position
+                button_y = panel_y  # Updated position
                 button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
 
                 if button_rect.collidepoint(mouse_pos):
                     show_stats = False
+
 
             # Game over screen handling
             elif game_over:
