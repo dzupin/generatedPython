@@ -85,5 +85,16 @@ def edit_file(filename, title):
     return render_template('edit.html', content=content, title=title)
 
 
+def get_local_ip():
+    # Run the 'ip addr show' command and parse the output to find the IP address
+    command = "ip addr show | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | cut -d/ -f1 | head -n 1"
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    return result.stdout.strip()
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5050)
+    # Get the local IP address
+    local_ip = get_local_ip()
+    print(f"Local IP address: {local_ip}")
+
+    # Run the Flask app on the local IP address
+    app.run(host=local_ip, port=5050, debug=True)
