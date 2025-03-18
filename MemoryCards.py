@@ -2,7 +2,9 @@ import pygame
 import random
 import time
 import sys
-
+import os
+import json
+from pygame import gfxdraw
 
 # Initialize pygame
 pygame.init()
@@ -13,20 +15,19 @@ CARD_HEIGHT = 160
 CARD_MARGIN = 20
 GRID_COLS = 5
 GRID_ROWS = 4
-CARD_WIDTH = 120
-CARD_HEIGHT = 160
-CARD_MARGIN = 20
-GRID_COLS = 5
-GRID_ROWS = 4
+TOTAL_CARDS = GRID_COLS * GRID_ROWS
+
 # Calculate window dimensions to fit all cards with margins
 WINDOW_WIDTH = GRID_COLS * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN
 WINDOW_HEIGHT = GRID_ROWS * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN + 100  # Extra 100px for UI elements
-TOTAL_CARDS = GRID_COLS * GRID_ROWS
+
+# Colors
 CARD_BACK_COLOR = (41, 128, 185)  # Blue
 BG_COLOR = (236, 240, 241)  # Light gray
 TEXT_COLOR = (44, 62, 80)  # Dark blue
 HIGHLIGHT_COLOR = (46, 204, 113)  # Green
 MATCHED_COLOR = (39, 174, 96)  # Darker green
+STATS_BG_COLOR = (245, 245, 245)  # Very light gray
 
 # Create the window
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -36,6 +37,7 @@ pygame.display.set_caption("Memory Card Game")
 font_large = pygame.font.SysFont("Arial", 36)
 font_medium = pygame.font.SysFont("Arial", 28)
 font_small = pygame.font.SysFont("Arial", 20)
+font_tiny = pygame.font.SysFont("Arial", 16)
 
 # Game variables
 card_values = list(range(1, TOTAL_CARDS // 2 + 1)) * 2
@@ -43,6 +45,31 @@ matches_found = 0
 moves = 0
 start_time = 0
 game_over = False
+show_stats = False
+
+# Stats file
+STATS_FILE = "memory_game_stats.json"
+
+
+# Load previous stats
+def load_stats():
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+
+# Save stats
+def save_stats(stats):
+    with open(STATS_FILE, "w") as f:
+        json.dump(stats, f)
+
+
+# History of games
+game_history = load_stats()
 
 
 # Card class
@@ -206,7 +233,7 @@ class Card:
 
 # Function to set up the game
 def setup_game():
-    global cards, card_values, matches_found, moves, start_time, game_over
+    global cards, card_values, matches_found, moves, start_time, game_over, show_stats
 
     # Shuffle the card values
     random.shuffle(card_values)
@@ -217,7 +244,7 @@ def setup_game():
         row = i // GRID_COLS
         col = i % GRID_COLS
         x = col * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN
-        y = row * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN + 100  # Add offset for UI
+        y = row * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN + 80  # Add offset for UI
         cards.append(Card(x, y, card_values[i]))
 
     # Reset game state
@@ -225,6 +252,7 @@ def setup_game():
     moves = 0
     start_time = time.time()
     game_over = False
+    show_stats = False
 
 
 # Function to draw a rounded rectangle with a gradient
@@ -269,11 +297,30 @@ def draw_ui():
 
     # Draw moves counter
     moves_text = font_medium.render(f"Moves: {moves}", True, TEXT_COLOR)
-    screen.blit(moves_text, (20, 60))
+    screen.blit(moves_text, (20, 50))
 
     # Draw progress
     progress_text = font_medium.render(f"Matches: {matches_found}/{TOTAL_CARDS // 2}", True, TEXT_COLOR)
     screen.blit(progress_text, (WINDOW_WIDTH - 200, 20))
+
+    # Draw stats button
+    stats_button_width, stats_button_height = 140, 40
+    stats_button_x = WINDOW_WIDTH - 150
+    stats_button_y = 50
+
+    # Check if mouse is over stats button
+    mouse_pos = pygame.mouse.get_pos()
+    stats_button_rect = pygame.Rect(stats_button_x, stats_button_y, stats_button_width, stats_button_height)
+    stats_button_hover = stats_button_rect.collidepoint(mouse_pos)
+
+    # Draw stats button
+    stats_button_color = HIGHLIGHT_COLOR if stats_button_hover else (52, 152, 219)
+    draw_rounded_rect(screen, stats_button_rect, stats_button_color, 0.4)
+
+    # Draw stats button text
+    stats_text = font_small.render("Game History", True, (255, 255, 255))
+    screen.blit(stats_text, (stats_button_x + (stats_button_width - stats_text.get_width()) // 2,
+                             stats_button_y + (stats_button_height - stats_text.get_height()) // 2))
 
     # Draw game over message if applicable
     if game_over:
@@ -319,6 +366,112 @@ def draw_ui():
                                       button_y + (button_height - play_again_text.get_height()) // 2))
 
 
+# Function to draw stats screen
+def draw_stats_screen():
+    # Draw semi-transparent overlay
+    overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 128))
+    screen.blit(overlay, (0, 0))
+
+    # Draw stats panel
+    panel_width = min(WINDOW_WIDTH - 40, 700)
+    panel_height = min(WINDOW_HEIGHT - 40, 500)
+    panel_x = (WINDOW_WIDTH - panel_width) // 2
+    panel_y = (WINDOW_HEIGHT - panel_height) // 2
+    draw_rounded_rect(screen, (panel_x, panel_y, panel_width, panel_height), STATS_BG_COLOR, 0.2)
+
+    # Draw stats title
+    stats_title = font_large.render("Game History", True, TEXT_COLOR)
+    screen.blit(stats_title, (panel_x + (panel_width - stats_title.get_width()) // 2, panel_y + 20))
+
+    # Draw headers
+    headers = ["#", "Date", "Time", "Moves", "Duration"]
+    header_width = panel_width // len(headers)
+    for i, header in enumerate(headers):
+        header_text = font_medium.render(header, True, TEXT_COLOR)
+        screen.blit(header_text,
+                    (panel_x + i * header_width + (header_width - header_text.get_width()) // 2, panel_y + 70))
+
+    # Draw separator line
+    pygame.draw.line(screen, TEXT_COLOR, (panel_x + 20, panel_y + 100), (panel_x + panel_width - 20, panel_y + 100), 2)
+
+    # Draw stats entries
+    max_entries = 10
+    start_index = max(0, len(game_history) - max_entries)
+    displayed_history = game_history[start_index:]
+
+    for i, entry in enumerate(displayed_history):
+        y_pos = panel_y + 120 + i * 30
+
+        # Game number
+        game_num = font_small.render(str(start_index + i + 1), True, TEXT_COLOR)
+        screen.blit(game_num, (panel_x + (header_width - game_num.get_width()) // 2, y_pos))
+
+        # Date
+        date_text = font_small.render(entry["date"], True, TEXT_COLOR)
+        screen.blit(date_text, (panel_x + header_width + (header_width - date_text.get_width()) // 2, y_pos))
+
+        # Time
+        time_text = font_small.render(entry["time"], True, TEXT_COLOR)
+        screen.blit(time_text, (panel_x + 2 * header_width + (header_width - time_text.get_width()) // 2, y_pos))
+
+        # Moves
+        moves_text = font_small.render(str(entry["moves"]), True, TEXT_COLOR)
+        screen.blit(moves_text, (panel_x + 3 * header_width + (header_width - moves_text.get_width()) // 2, y_pos))
+
+        # Duration
+        duration_text = font_small.render(entry["duration"], True, TEXT_COLOR)
+        screen.blit(duration_text,
+                    (panel_x + 4 * header_width + (header_width - duration_text.get_width()) // 2, y_pos))
+
+    # Draw "More Stats" section
+    if game_history:
+        # Calculate average stats
+        total_moves = sum(entry["moves"] for entry in game_history)
+        total_seconds = sum(entry["seconds"] for entry in game_history)
+        avg_moves = total_moves / len(game_history)
+        avg_seconds = total_seconds / len(game_history)
+        avg_minutes = avg_seconds // 60
+        avg_seconds_remainder = avg_seconds % 60
+
+        # Find best stats
+        best_moves = min(game_history, key=lambda x: x["moves"])
+        best_time = min(game_history, key=lambda x: x["seconds"])
+
+        # Draw stats lines
+        stats_lines = [
+            f"Total Games Played: {len(game_history)}",
+            f"Average Moves: {avg_moves:.1f}",
+            f"Average Time: {int(avg_minutes):02d}:{int(avg_seconds_remainder):02d}",
+            f"Best Moves: {best_moves['moves']} (Game #{game_history.index(best_moves) + 1})",
+            f"Best Time: {best_time['duration']} (Game #{game_history.index(best_time) + 1})"
+        ]
+
+        for i, line in enumerate(stats_lines):
+            y_pos = panel_y + panel_height - 150 + i * 25
+            line_text = font_medium.render(line, True, TEXT_COLOR)
+            screen.blit(line_text, (panel_x + 30, y_pos))
+
+    # Draw close button
+    button_width, button_height = 150, 40
+    button_x = panel_x + (panel_width - button_width) // 2
+    button_y = panel_y + panel_height - button_height - 20
+
+    # Check if mouse is over button
+    mouse_pos = pygame.mouse.get_pos()
+    button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+    button_hover = button_rect.collidepoint(mouse_pos)
+
+    # Draw button
+    button_color = HIGHLIGHT_COLOR if button_hover else (52, 152, 219)
+    draw_rounded_rect(screen, button_rect, button_color, 0.4)
+
+    # Draw button text
+    close_text = font_medium.render("Close", True, (255, 255, 255))
+    screen.blit(close_text, (button_x + (button_width - close_text.get_width()) // 2,
+                             button_y + (button_height - close_text.get_height()) // 2))
+
+
 # Set up the game
 setup_game()
 
@@ -336,7 +489,30 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if game_over:
+            mouse_pos = pygame.mouse.get_pos()
+
+            # Check if stats button is clicked
+            stats_button_rect = pygame.Rect(WINDOW_WIDTH - 150, 50, 140, 40)
+            if stats_button_rect.collidepoint(mouse_pos) and not game_over:
+                show_stats = not show_stats
+
+            # If stats screen is open, check for close button click
+            if show_stats:
+                panel_width = min(WINDOW_WIDTH - 40, 700)
+                panel_height = min(WINDOW_HEIGHT - 40, 500)
+                panel_x = (WINDOW_WIDTH - panel_width) // 2
+                panel_y = (WINDOW_HEIGHT - panel_height) // 2
+
+                button_width, button_height = 150, 40
+                button_x = panel_x + (panel_width - button_width) // 2
+                button_y = panel_y + panel_height - button_height - 20
+                button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+
+                if button_rect.collidepoint(mouse_pos):
+                    show_stats = False
+
+            # Game over screen handling
+            elif game_over:
                 # Check if play again button is clicked
                 button_width, button_height = 200, 50
                 panel_width, panel_height = 400, 250
@@ -344,12 +520,14 @@ while running:
                 button_y = (WINDOW_HEIGHT - panel_height) // 2 + panel_height - button_height - 30
                 button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
 
-                if button_rect.collidepoint(event.pos):
+                if button_rect.collidepoint(mouse_pos):
                     setup_game()
-            elif not animating and wait_time <= 0:
+
+            # Regular game play
+            elif not animating and wait_time <= 0 and not show_stats:
                 # Check if a card is clicked
                 for card in cards:
-                    if card.contains_point(event.pos) and not card.revealed and not card.matched:
+                    if card.contains_point(mouse_pos) and not card.revealed and not card.matched:
                         if first_card is None:
                             first_card = card
                             first_card.revealed = True
@@ -388,6 +566,25 @@ while running:
                 if matches_found == TOTAL_CARDS // 2:
                     game_over = True
                     game_over_time = int(time.time() - start_time)
+
+                    # Create a new stats entry
+                    from datetime import datetime
+
+                    now = datetime.now()
+                    date_str = now.strftime("%Y-%m-%d")
+                    time_str = now.strftime("%H:%M:%S")
+                    duration_str = f"{game_over_time // 60:02d}:{game_over_time % 60:02d}"
+
+                    game_history.append({
+                        "date": date_str,
+                        "time": time_str,
+                        "moves": moves,
+                        "seconds": game_over_time,
+                        "duration": duration_str
+                    })
+
+                    # Save stats to file
+                    save_stats(game_history)
             else:
                 wait_time = 60  # Wait for 1 second (60 frames at 60 FPS)
 
@@ -413,6 +610,10 @@ while running:
 
     # Draw UI
     draw_ui()
+
+    # Draw stats screen if toggled
+    if show_stats:
+        draw_stats_screen()
 
     # Update the display
     pygame.display.flip()
