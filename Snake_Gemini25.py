@@ -3,6 +3,8 @@ import sys
 import random
 import time
 
+# PROMPT Gemini_2.5:  write snake game in python using pygame library. Make the game visually appealing
+
 # --- Constants ---
 SCREEN_WIDTH = 720
 SCREEN_HEIGHT = 480
