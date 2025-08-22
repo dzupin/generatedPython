@@ -28,3 +28,8 @@ Make your own judgement what updates should be implemented and present me with f
 FOLLOW UP 4:
 Game is now working great. But when user starts game, it always starts from Novice level, even if in previous game achieved "Apprentice" level. and also all points from previous game are lost.
 Update code to have persistent storage to a file (in current directory)  so it is possible for user also continue from previous game session with points and level to be transferred to a new game. .
+
+
+
+PROMPT: Create visually appealing Tower Defense game in Python using Pygame library. Don't use any external images to achieve it. Python code will generate all necessary graphic elements used by game.  Implement also engaging game mechanics to make the game addictive to play. Game should be strictly a single player and offline.  I want you to write complete code of the game and its graphic interface.
+FOLLOW UP 1:
