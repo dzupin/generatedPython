@@ -17,7 +17,11 @@ Update code to make fully functional game with complete code to implement follow
 Introduce a game_state dictionary: This dictionary will persist outside the main game loop to keep track of the player's level and other persistent data.
 Modify the Game Loop: The main loop should be wrapped in another while loop that controls the overall application, while the inner loop runs a single game session.
 Calculate Performance and display statistics to motivate player to play next round. Don't increase difficulty of the game but give players graphical rewards for their game. Make sure to introduce rewards for time spend playing the game. For example after third game, players will be presented with nice animation of medal of progressing from novice to beginner level, etc.
-FOLLOW UP 2:
+FOLLOW UP 2 (not included follow up degug prompts):
 Update code to keep last three player selected  cards still visible to player when playing as "Novice"  (player see value of three cards at given time)
 then also update code to keep face of the  last two cards that player picked visible to players when playing as "Beginner"  (player see value of two cards at given time)
 and only when playing as "Apprentice" the game mechanic will be same as it is currently (player only see one card at the time just like it is done in original code)
+FOLLOW UP 3:
+Excellent, last update is working flawlessly. Now, lets finalize the game. Analyze code again and write update to polish game even further. Identify "low hanging fruit" to make game even more graphically appealing and analyze stat provided to user to expand it with some new bonus values that will be improving after each round and keep user engaged. Ideally link this new bonus value with performance in previous round.  For example small bonus for many moves to finish game and huge bonus if number of moves was very low.
+But at the same time make sure to keep the current game functionality in place.
+Make your own judgement what updates should be implemented and present me with final fully update code for memory card game.
