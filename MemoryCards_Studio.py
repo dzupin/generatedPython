@@ -2,15 +2,18 @@ import pygame
 import random
 import math
 import time
+import json
+import os
 
 # --- Constants ---
 SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
 GRID_ROWS, GRID_COLS = 4, 5
 CARD_WIDTH, CARD_HEIGHT, CARD_GAP = 120, 120, 20
+SAVE_FILE = "memory_game_save.json"
 
 # --- Colors ---
 WHITE, BLACK, GRAY = (255, 255, 255), (0, 0, 0), (100, 100, 100)
-BG_COLOR1, BG_COLOR2 = (25, 25, 50), (45, 45, 80)
+BG_COLOR1 = (25, 25, 50)
 CARD_FACE_COLOR, CARD_OUTLINE_COLOR = (230, 230, 255), (255, 255, 255)
 CARD_MATCHED_COLOR, SHADOW_COLOR = (50, 200, 50), (20, 20, 20)
 
@@ -53,43 +56,61 @@ TIME_BONUS_SECONDS = 30
 FLIP_SPEED, MATCH_ANIMATION_SPEED, PULSE_SPEED = 0.05, 0.1, 0.03
 
 
-# --- Helper Functions ---
+# --- Save/Load and Helper Functions ---
+def load_game_state():
+    """Loads game state from a JSON file, or returns a default state if not found."""
+    if os.path.exists(SAVE_FILE):
+        try:
+            with open(SAVE_FILE, 'r') as f:
+                return json.load(f)
+        except (IOError, json.JSONDecodeError) as e:
+            print(f"Error loading save file: {e}. A new game will be started.")
+
+    # Return a default state for the first launch or if loading fails
+    return {
+        'games_played': 0, 'total_play_time': 0, 'rank_name': 'Novice', 'medal_color': RANKS[0]['medal_color'],
+        'unlocked_palettes': ['Default'], 'unlocked_card_backs': ['Default'],
+        'current_palette': 'Default', 'current_card_back': 'Default',
+        'total_score': 0, 'high_score': 0
+    }
+
+
+def save_game_state(state):
+    """Saves the given game state to a JSON file."""
+    try:
+        with open(SAVE_FILE, 'w') as f:
+            json.dump(state, f, indent=4)  # indent makes the file human-readable
+    except IOError as e:
+        print(f"Error saving game state: {e}")
+
+
 def create_background_particles():
-    particles = []
-    for _ in range(40):
-        particles.append({
-            'rect': pygame.Rect(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT),
-                                random.randint(10, 40), random.randint(10, 40)),
-            'color': (255, 255, 255, random.randint(10, 40)),
-            'speed': (random.uniform(-0.5, 0.5), random.uniform(-0.5, 0.5))
-        })
-    return particles
+    return [{'rect': pygame.Rect(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT),
+                                 random.randint(10, 40), random.randint(10, 40)),
+             'color': (255, 255, 255, random.randint(10, 40)),
+             'speed': (random.uniform(-0.5, 0.5), random.uniform(-0.5, 0.5))} for _ in range(40)]
 
 
 def draw_animated_background(surface, particles):
     surface.fill(BG_COLOR1)
     for p in particles:
-        p['rect'].x += p['speed'][0];
-        p['rect'].y += p['speed'][1]
+        p['rect'].move_ip(*p['speed'])
         if p['rect'].left > SCREEN_WIDTH: p['rect'].right = 0
         if p['rect'].right < 0: p['rect'].left = SCREEN_WIDTH
         if p['rect'].top > SCREEN_HEIGHT: p['rect'].bottom = 0
         if p['rect'].bottom < 0: p['rect'].top = SCREEN_HEIGHT
-        shape_surf = pygame.Surface(p['rect'].size, pygame.SRCALPHA)
-        pygame.draw.ellipse(shape_surf, p['color'], (0, 0, *p['rect'].size))
+        shape_surf = pygame.Surface(p['rect'].size, pygame.SRCALPHA);
+        pygame.draw.ellipse(shape_surf, p['color'], (0, 0, *p['rect'].size));
         surface.blit(shape_surf, p['rect'])
 
 
 def draw_text_shadow(surface, text, size, x, y, color=WHITE, align="center"):
-    font = pygame.font.Font(None, size)
-    text_surf = font.render(text, True, color)
+    font = pygame.font.Font(None, size);
+    text_surf = font.render(text, True, color);
     shadow_surf = font.render(text, True, SHADOW_COLOR)
-    text_rect = text_surf.get_rect()
-    if align == "center":
-        text_rect.center = (x, y)
-    elif align == "topleft":
-        text_rect.topleft = (x, y)
-    surface.blit(shadow_surf, (text_rect.x + 2, text_rect.y + 2))
+    text_rect = text_surf.get_rect();
+    setattr(text_rect, align, (x, y));
+    surface.blit(shadow_surf, (text_rect.x + 2, text_rect.y + 2));
     surface.blit(text_surf, text_rect)
 
 
@@ -100,17 +121,16 @@ def draw_medal(s, x, y, size, c):
 
 
 def fade_transition(screen, direction='out'):
-    fade_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    fade_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT));
     fade_surf.fill(BLACK)
     for alpha in range(0, 256, 5):
-        current_alpha = alpha if direction == 'out' else 255 - alpha
-        fade_surf.set_alpha(current_alpha)
-        screen.blit(fade_surf, (0, 0))
-        pygame.display.flip()
+        fade_surf.set_alpha(alpha if direction == 'out' else 255 - alpha);
+        screen.blit(fade_surf, (0, 0));
+        pygame.display.flip();
         pygame.time.delay(5)
 
 
-# --- Shape Drawing Functions (minified) ---
+# --- Shape Drawing Functions (minified for brevity) ---
 def d_s_1(s, c): pygame.draw.polygon(s, c, [(s.get_width() // 2, 10), (s.get_width() - 10, s.get_height() // 2),
                                             (s.get_width() // 2, s.get_height() - 10), (10, s.get_height() // 2)])
 
@@ -274,11 +294,8 @@ def run_game_session(screen, clock, game_state, particles):
                     if (flipped := card.handle_event(event)):
                         newly_flipped = flipped
                         flip_count_for_move += 1
-                        # --- BUG FIX ---
-                        # A "move" is completed every time a second card is flipped.
                         if flip_count_for_move > 0 and flip_count_for_move % 2 == 0:
                             moves += 1
-                        # --- END FIX ---
                         break
 
         if rank == 'Apprentice':
@@ -289,8 +306,7 @@ def run_game_session(screen, clock, game_state, particles):
                 if c1.shape_id == c2.shape_id:
                     c1.is_matched, c2.is_matched = True, True
                 else:
-                    c1.flip();
-                    c2.flip()
+                    c1.flip(); c2.flip()
                 active_cards.clear()
         else:  # Novice & Beginner
             max_visible = 3 if rank == 'Novice' else 2
@@ -426,13 +442,10 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Memory Card Game - Final Edition")
     clock = pygame.time.Clock()
-    game_state = {
-        'games_played': 0, 'total_play_time': 0, 'rank_name': 'Novice', 'medal_color': RANKS[0]['medal_color'],
-        'unlocked_palettes': ['Default'], 'unlocked_card_backs': ['Default'],
-        'current_palette': 'Default', 'current_card_back': 'Default',
-        'total_score': 0, 'high_score': 0
-    }
+
+    game_state = load_game_state()
     particles = create_background_particles()
+
     app_running = True
     while app_running:
         game_result = run_game_session(screen, clock, game_state, particles)
@@ -444,6 +457,8 @@ def main():
                 app_running = False
             else:
                 fade_transition(screen, 'in')
+
+    save_game_state(game_state)
     pygame.quit()
 
 

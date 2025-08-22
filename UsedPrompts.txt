@@ -25,3 +25,6 @@ FOLLOW UP 3:
 Excellent, last update is working flawlessly. Now, lets finalize the game. Analyze code again and write update to polish game even further. Identify "low hanging fruit" to make game even more graphically appealing and analyze stat provided to user to expand it with some new bonus values that will be improving after each round and keep user engaged. Ideally link this new bonus value with performance in previous round.  For example small bonus for many moves to finish game and huge bonus if number of moves was very low.
 But at the same time make sure to keep the current game functionality in place.
 Make your own judgement what updates should be implemented and present me with final fully update code for memory card game.
+FOLLOW UP 4:
+Game is now working great. But when user starts game, it always starts from Novice level, even if in previous game achieved "Apprentice" level. and also all points from previous game are lost.
+Update code to have persistent storage to a file (in current directory)  so it is possible for user also continue from previous game session with points and level to be transferred to a new game. .
