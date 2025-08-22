@@ -10,3 +10,5 @@ PROMPT: Write python script that implements the classic Snake game using pygame 
 MODEL: deepseek-coder-7b-instruct-v1.5-Q6_K.gguf ,BigO with  loaded ALPACA system template
 SANDBOX:  Snake01.py
 
+
+PROMPT: Create visually appealing memory card game in Python using Pygame library. Don't use any external images to achieve it. Python code will generate all necesary graphic elements used by game.  Implement also engaging game mechanics to make the game addictive to play. Game should be strictly a single player and offline.  I want you to write complete code of the game and its graphic interface.
