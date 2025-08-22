@@ -12,3 +12,12 @@ SANDBOX:  Snake01.py
 
 
 PROMPT: Create visually appealing memory card game in Python using Pygame library. Don't use any external images to achieve it. Python code will generate all necesary graphic elements used by game.  Implement also engaging game mechanics to make the game addictive to play. Game should be strictly a single player and offline.  I want you to write complete code of the game and its graphic interface.
+FOLLOW UP 1:
+Update code to make fully functional game with complete code to implement following:
+Introduce a game_state dictionary: This dictionary will persist outside the main game loop to keep track of the player's level and other persistent data.
+Modify the Game Loop: The main loop should be wrapped in another while loop that controls the overall application, while the inner loop runs a single game session.
+Calculate Performance and display statistics to motivate player to play next round. Don't increase difficulty of the game but give players graphical rewards for their game. Make sure to introduce rewards for time spend playing the game. For example after third game, players will be presented with nice animation of medal of progressing from novice to beginner level, etc.
+FOLLOW UP 2:
+Update code to keep last three player selected  cards still visible to player when playing as "Novice"  (player see value of three cards at given time)
+then also update code to keep face of the  last two cards that player picked visible to players when playing as "Beginner"  (player see value of two cards at given time)
+and only when playing as "Apprentice" the game mechanic will be same as it is currently (player only see one card at the time just like it is done in original code)
