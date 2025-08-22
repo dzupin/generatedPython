@@ -28,8 +28,6 @@ CARD_OUTLINE_COLOR = (255, 255, 255)
 CARD_MATCHED_COLOR = (50, 200, 50)
 
 # --- UNLOCKABLE COSMETICS ---
-
-# Color Palettes
 PALETTES = {
     'Default': [
         (255, 105, 180), (255, 215, 0), (138, 43, 226), (0, 255, 255), (255, 165, 0),
@@ -46,54 +44,42 @@ PALETTES = {
 }
 
 
-# Card Back Drawing Functions
 def draw_card_back_default(surface, rect):
     start_color, end_color = (100, 150, 255), (60, 100, 200)
     for x in range(rect.width):
         ratio = x / rect.width
-        color = (
-            int(start_color[0] * (1 - ratio) + end_color[0] * ratio),
-            int(start_color[1] * (1 - ratio) + end_color[1] * ratio),
-            int(start_color[2] * (1 - ratio) + end_color[2] * ratio)
-        )
+        color = tuple(int(start_color[i] * (1 - ratio) + end_color[i] * ratio) for i in range(3))
         pygame.draw.line(surface, color, (x, 0), (x, rect.height))
     pygame.draw.line(surface, WHITE, (10, 10), (rect.width - 10, rect.height - 10), 3)
     pygame.draw.line(surface, WHITE, (10, rect.height - 10), (rect.width - 10, 10), 3)
 
 
 def draw_card_back_circles(surface, rect):
-    start_color, end_color = (255, 100, 100), (200, 60, 60)
-    pygame.draw.rect(surface, end_color, (0, 0, rect.width, rect.height))
-    center = rect.center
-    for r in range(10, rect.width // 2, 15):
-        pygame.draw.circle(surface, WHITE, center, r, 2)
+    pygame.draw.rect(surface, (200, 60, 60), (0, 0, rect.width, rect.height))
+    for r in range(10, rect.width // 2, 15): pygame.draw.circle(surface, WHITE, rect.center, r, 2)
 
 
-CARD_BACK_STYLES = {
-    'Default': draw_card_back_default,
-    'Crimson Circles': draw_card_back_circles
-}
+CARD_BACK_STYLES = {'Default': draw_card_back_default, 'Crimson Circles': draw_card_back_circles}
 
 # --- RANKS and UNLOCKS ---
 RANKS = {
-    0: {'name': "Novice", 'medal_color': (205, 127, 50)},  # Bronze
-    3: {'name': "Beginner", 'unlock': ('palette', 'Forest'), 'medal_color': (192, 192, 192)},  # Silver
-    6: {'name': "Apprentice", 'unlock': ('card_back', 'Crimson Circles'), 'medal_color': (255, 215, 0)},  # Gold
+    0: {'name': "Novice", 'medal_color': (205, 127, 50)},
+    3: {'name': "Beginner", 'unlock': ('palette', 'Forest'), 'medal_color': (192, 192, 192)},
+    6: {'name': "Apprentice", 'unlock': ('card_back', 'Crimson Circles'), 'medal_color': (255, 215, 0)},
 }
 
-# Animation speeds
+# --- Animation speeds ---
 FLIP_SPEED = 0.05
 MATCH_ANIMATION_SPEED = 0.1
 
 
 # --- Helper Functions ---
 def draw_gradient_background(surface):
-    rect = pygame.Rect(0, 0, surface.get_width(), surface.get_height())
     start_color, end_color = BG_COLOR1, BG_COLOR2
-    for y in range(rect.height):
-        ratio = y / rect.height
+    for y in range(surface.get_height()):
+        ratio = y / surface.get_height()
         color = tuple(int(start_color[i] * (1 - ratio) + end_color[i] * ratio) for i in range(3))
-        pygame.draw.line(surface, color, (rect.left, y), (rect.right, y))
+        pygame.draw.line(surface, color, (0, y), (surface.get_width(), y))
 
 
 def draw_text(surface, text, size, x, y, color=WHITE, align="center"):
@@ -108,84 +94,67 @@ def draw_text(surface, text, size, x, y, color=WHITE, align="center"):
 
 
 def draw_medal(surface, x, y, size, color):
-    # Draw a simple medal shape
-    outer_circle_rect = pygame.Rect(x - size, y - size, size * 2, size * 2)
     pygame.draw.circle(surface, color, (x, y), size)
     pygame.draw.circle(surface, tuple(min(255, c + 30) for c in color), (x, y), size * 0.8)
-    # Ribbon
     pygame.draw.rect(surface, (200, 0, 0), (x - size * 0.4, y - size, size * 0.8, size * 0.5))
 
 
-# --- Shape Drawing Functions ---
-# (Re-using the shape functions from the original code)
-def draw_shape_1(surface, color): pygame.draw.polygon(surface, color, [(surface.get_width() // 2, 10),
-                                                                       (surface.get_width() - 10,
-                                                                        surface.get_height() // 2),
-                                                                       (surface.get_width() // 2,
-                                                                        surface.get_height() - 10),
-                                                                       (10, surface.get_height() // 2)])
+# --- Shape Drawing Functions (minified for brevity) ---
+def draw_shape_1(s, c): pygame.draw.polygon(s, c, [(s.get_width() // 2, 10), (s.get_width() - 10, s.get_height() // 2),
+                                                   (s.get_width() // 2, s.get_height() - 10),
+                                                   (10, s.get_height() // 2)])
 
 
-def draw_shape_2(surface, color): pygame.draw.rect(surface, color, (30, 10, surface.get_width() - 60,
-                                                                    surface.get_height() - 20)); pygame.draw.rect(
-    surface, color, (10, 30, surface.get_width() - 20, surface.get_height() - 60))
+def draw_shape_2(s, c): pygame.draw.rect(s, c, (30, 10, s.get_width() - 60, s.get_height() - 20)); pygame.draw.rect(s,
+                                                                                                                    c,
+                                                                                                                    (10,
+                                                                                                                     30,
+                                                                                                                     s.get_width() - 20,
+                                                                                                                     s.get_height() - 60))
 
 
-def draw_shape_3(surface, color): center = (surface.get_width() // 2, surface.get_height() // 2); pygame.draw.circle(
-    surface, color, center, surface.get_width() // 2 - 10, 10); pygame.draw.circle(surface, color, center,
-                                                                                   surface.get_width() // 2 - 30, 10)
+def draw_shape_3(s, c): center = s.get_width() // 2, s.get_height() // 2; pygame.draw.circle(s, c, center,
+                                                                                             s.get_width() // 2 - 10,
+                                                                                             10); pygame.draw.circle(s,
+                                                                                                                     c,
+                                                                                                                     center,
+                                                                                                                     s.get_width() // 2 - 30,
+                                                                                                                     10)
 
 
-def draw_shape_4(surface, color): pygame.draw.polygon(surface, color, [(surface.get_width() // 2, 10),
-                                                                       (surface.get_width() - 10,
-                                                                        surface.get_height() - 10),
-                                                                       (10, surface.get_height() - 10)])
+def draw_shape_4(s, c): pygame.draw.polygon(s, c, [(s.get_width() // 2, 10), (s.get_width() - 10, s.get_height() - 10),
+                                                   (10, s.get_height() - 10)])
 
 
-def draw_shape_5(surface, color): pygame.draw.polygon(surface, color, [(10, 10), (surface.get_width() - 10, 10),
-                                                                       (10, surface.get_height() - 10),
-                                                                       (surface.get_width() - 10,
-                                                                        surface.get_height() - 10)])
+def draw_shape_5(s, c): pygame.draw.polygon(s, c, [(10, 10), (s.get_width() - 10, 10), (10, s.get_height() - 10),
+                                                   (s.get_width() - 10, s.get_height() - 10)])
 
 
-def draw_shape_6(surface, color):
-    center_x, center_y = surface.get_width() // 2, surface.get_height() // 2;
-    outer_radius, inner_radius = surface.get_width() // 2 - 10, surface.get_width() // 5;
-    points = []
-    for i in range(10): angle = math.radians(
-        i * 36); radius = outer_radius if i % 2 == 0 else inner_radius; points.append(
-        (center_x + radius * math.sin(angle), center_y - radius * math.cos(angle)))
-    pygame.draw.polygon(surface, color, points)
+def draw_shape_6(s,
+                 c): cx, cy = s.get_width() // 2, s.get_height() // 2;r1, r2 = s.get_width() // 2 - 10, s.get_width() // 5;p = [];[
+    p.append((cx + (r1 if i % 2 == 0 else r2) * math.sin(math.radians(i * 36)),
+              cy - (r1 if i % 2 == 0 else r2) * math.cos(math.radians(i * 36)))) for i in
+    range(10)];pygame.draw.polygon(s, c, p)
 
 
-def draw_shape_7(surface, color): pygame.draw.rect(surface, color,
-                                                   (10, 10, surface.get_width() - 20, surface.get_height() - 20),
-                                                   10); pygame.draw.circle(surface, color, (surface.get_width() // 2,
-                                                                                            surface.get_height() // 2),
-                                                                           20)
+def draw_shape_7(s, c): pygame.draw.rect(s, c, (10, 10, s.get_width() - 20, s.get_height() - 20),
+                                         10);pygame.draw.circle(s, c, (s.get_width() // 2, s.get_height() // 2), 20)
 
 
-def draw_shape_8(surface, color): pygame.draw.line(surface, color, (10, 10),
-                                                   (surface.get_width() - 10, surface.get_height() - 10),
-                                                   15); pygame.draw.line(surface, color,
-                                                                         (10, surface.get_height() - 10),
-                                                                         (surface.get_width() - 10, 10), 15)
+def draw_shape_8(s, c): pygame.draw.line(s, c, (10, 10), (s.get_width() - 10, s.get_height() - 10),
+                                         15);pygame.draw.line(s, c, (10, s.get_height() - 10), (s.get_width() - 10, 10),
+                                                              15)
 
 
-def draw_shape_9(surface, color): pygame.draw.rect(surface, color,
-                                                   (10, 20, surface.get_width() - 20, 20)); pygame.draw.rect(surface,
-                                                                                                             color, (10,
-                                                                                                                     surface.get_height() // 2 - 10,
-                                                                                                                     surface.get_width() - 20,
-                                                                                                                     20)); pygame.draw.rect(
-    surface, color, (10, surface.get_height() - 40, surface.get_width() - 20, 20))
+def draw_shape_9(s, c): pygame.draw.rect(s, c, (10, 20, s.get_width() - 20, 20));pygame.draw.rect(s, c, (10,
+                                                                                                         s.get_height() // 2 - 10,
+                                                                                                         s.get_width() - 20,
+                                                                                                         20));pygame.draw.rect(
+    s, c, (10, s.get_height() - 40, s.get_width() - 20, 20))
 
 
-def draw_shape_10(surface, color): center, radius = (surface.get_width() // 2,
-                                                     surface.get_height() // 2), surface.get_width() // 2 - 10; rect = (
-    center[0] - radius, center[1] - radius, radius * 2, radius * 2); pygame.draw.arc(surface, color, rect,
-                                                                                     math.radians(45),
-                                                                                     math.radians(315), radius)
+def draw_shape_10(s, c): center, r = (s.get_width() // 2, s.get_height() // 2), s.get_width() // 2 - 10;rect = (
+    center[0] - r, center[1] - r, r * 2, r * 2);pygame.draw.arc(s, c, rect, math.radians(45), math.radians(315), r)
 
 
 SHAPE_FUNCTIONS = [draw_shape_1, draw_shape_2, draw_shape_3, draw_shape_4, draw_shape_5, draw_shape_6, draw_shape_7,
@@ -196,10 +165,7 @@ SHAPE_FUNCTIONS = [draw_shape_1, draw_shape_2, draw_shape_3, draw_shape_4, draw_
 class Button:
     def __init__(self, x, y, width, height, text, color=(150, 250, 150), hover_color=(200, 255, 200), text_color=BLACK):
         self.rect = pygame.Rect(x, y, width, height)
-        self.text = text
-        self.color = color
-        self.hover_color = hover_color
-        self.text_color = text_color
+        self.text, self.color, self.hover_color, self.text_color = text, color, hover_color, text_color
         self.is_hovered = False
 
     def draw(self, screen):
@@ -208,58 +174,47 @@ class Button:
         draw_text(screen, self.text, 30, self.rect.centerx, self.rect.centery, self.text_color)
 
     def handle_event(self, event):
-        if event.type == pygame.MOUSEMOTION:
-            self.is_hovered = self.rect.collidepoint(event.pos)
-        if event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered:
-            return True
+        if event.type == pygame.MOUSEMOTION: self.is_hovered = self.rect.collidepoint(event.pos)
+        if event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered: return True
         return False
 
 
 # --- Card Class ---
 class Card:
     def __init__(self, shape_id, color, x, y, card_back_style):
-        self.shape_id = shape_id
-        self.color = color
+        self.shape_id, self.color = shape_id, color
         self.rect = pygame.Rect(x, y, CARD_WIDTH, CARD_HEIGHT)
-        self.is_flipped = False
-        self.is_matched = False
-        self.flip_animation = 0
-        self.match_animation = 0
+        self.is_flipped, self.is_matched = False, False
+        self.flip_animation, self.match_animation = 0, 0
         self.create_surfaces(card_back_style)
 
     def create_surfaces(self, card_back_style):
-        # Create face surface
         self.face_surface = pygame.Surface((CARD_WIDTH, CARD_HEIGHT), pygame.SRCALPHA)
         pygame.draw.rect(self.face_surface, CARD_FACE_COLOR, (0, 0, CARD_WIDTH, CARD_HEIGHT), border_radius=10)
         SHAPE_FUNCTIONS[self.shape_id](self.face_surface, self.color)
         pygame.draw.rect(self.face_surface, CARD_OUTLINE_COLOR, (0, 0, CARD_WIDTH, CARD_HEIGHT), 4, border_radius=10)
-
-        # Create back surface using the selected style
         self.back_surface = pygame.Surface((CARD_WIDTH, CARD_HEIGHT))
-        card_back_func = CARD_BACK_STYLES[card_back_style]
-        card_back_func(self.back_surface, self.back_surface.get_rect())
+        CARD_BACK_STYLES[card_back_style](self.back_surface, self.back_surface.get_rect())
         pygame.draw.rect(self.back_surface, CARD_OUTLINE_COLOR, (0, 0, CARD_WIDTH, CARD_HEIGHT), 4, border_radius=10)
 
     def draw(self, screen):
         if self.is_matched:
             if self.match_animation < 1: self.match_animation += MATCH_ANIMATION_SPEED
             tint = pygame.Surface((CARD_WIDTH, CARD_HEIGHT));
-            tint.fill(CARD_MATCHED_COLOR)
+            tint.fill(CARD_MATCHED_COLOR);
             tint.set_alpha(int(150 * self.match_animation))
             screen.blit(self.face_surface, self.rect.topleft);
             screen.blit(tint, self.rect.topleft)
             return
-
         if self.is_flipped and self.flip_animation < 1:
             self.flip_animation += FLIP_SPEED
         elif not self.is_flipped and self.flip_animation > 0:
             self.flip_animation -= FLIP_SPEED
         self.flip_animation = max(0, min(1, self.flip_animation))
-
-        current_scale = abs(1 - 2 * self.flip_animation)
-        surface_to_draw = self.face_surface if self.flip_animation >= 0.5 else self.back_surface
-        scaled_surface = pygame.transform.scale(surface_to_draw, (int(CARD_WIDTH * current_scale), CARD_HEIGHT))
-        screen.blit(scaled_surface, scaled_surface.get_rect(center=self.rect.center))
+        scale = abs(1 - 2 * self.flip_animation)
+        surf = self.face_surface if self.flip_animation >= 0.5 else self.back_surface
+        scaled_surf = pygame.transform.scale(surf, (int(CARD_WIDTH * scale), CARD_HEIGHT))
+        screen.blit(scaled_surf, scaled_surf.get_rect(center=self.rect.center))
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(
@@ -275,69 +230,90 @@ class Card:
 # --- Game Logic Functions ---
 def create_board(game_state):
     num_pairs = (GRID_ROWS * GRID_COLS) // 2
-    shape_ids = list(range(num_pairs))
-    card_pairs = []
-
     palette = PALETTES[game_state['current_palette']]
-
-    for i in range(num_pairs):
-        shape_id = shape_ids[i]
-        color = palette[i % len(palette)]
-        card_pairs.extend([(shape_id, color), (shape_id, color)])
-
+    card_pairs = []
+    for i in range(num_pairs): card_pairs.extend([((i), palette[i % len(palette)]), ((i), palette[i % len(palette)])])
     random.shuffle(card_pairs)
-
     cards = []
-    board_width = GRID_COLS * (CARD_WIDTH + CARD_GAP) - CARD_GAP
-    board_height = GRID_ROWS * (CARD_HEIGHT + CARD_GAP) - CARD_GAP
-    start_x, start_y = (SCREEN_WIDTH - board_width) // 2, (SCREEN_HEIGHT - board_height) // 2
-
+    board_w = GRID_COLS * (CARD_WIDTH + CARD_GAP) - CARD_GAP
+    start_x, start_y = (SCREEN_WIDTH - board_w) // 2, (
+                SCREEN_HEIGHT - (GRID_ROWS * (CARD_HEIGHT + CARD_GAP) - CARD_GAP)) // 2
     for i in range(GRID_ROWS):
         for j in range(GRID_COLS):
             shape_id, color = card_pairs.pop()
-            x, y = start_x + j * (CARD_WIDTH + CARD_GAP), start_y + i * (CARD_HEIGHT + CARD_GAP)
-            cards.append(Card(shape_id, color, x, y, game_state['current_card_back']))
+            cards.append(
+                Card(shape_id, color, start_x + j * (CARD_WIDTH + CARD_GAP), start_y + i * (CARD_HEIGHT + CARD_GAP),
+                     game_state['current_card_back']))
     return cards
 
 
 def run_game_session(screen, clock, game_state):
     cards = create_board(game_state)
-    flipped_cards = []
-    moves = 0
-    start_time = pygame.time.get_ticks()
-    game_over = False
+    active_cards = []
+    moves, start_time, game_over = 0, pygame.time.get_ticks(), False
+    rank = game_state['rank_name']
 
     running = True
     while running:
         elapsed_time = (pygame.time.get_ticks() - start_time) // 1000
 
+        # --- Event Handling ---
+        newly_flipped_card = None
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return {'status': 'quit'}
+            if event.type == pygame.QUIT: return {'status': 'quit'}
 
-            if not game_over and len(flipped_cards) < 2:
+            # Prevent interaction while Apprentice pair is being checked
+            if rank == 'Apprentice' and len(active_cards) == 2: continue
+
+            if not game_over:
                 for card in cards:
-                    flipped_card = card.handle_event(event)
-                    if flipped_card:
-                        flipped_cards.append(flipped_card)
+                    if (flipped := card.handle_event(event)):
+                        newly_flipped_card = flipped
+                        break
 
-        if len(flipped_cards) == 2:
-            pygame.time.wait(400)
-            moves += 1
-            card1, card2 = flipped_cards
-            if card1.shape_id == card2.shape_id:
-                card1.is_matched = True
-                card2.is_matched = True
-            else:
-                card1.flip();
-                card2.flip()
-            flipped_cards = []
+        # --- Game Logic based on Rank ---
+        if rank == 'Apprentice':
+            if newly_flipped_card: active_cards.append(newly_flipped_card)
 
+            if len(active_cards) == 2:
+                pygame.time.wait(400)
+                moves += 1
+                card1, card2 = active_cards
+                if card1.shape_id == card2.shape_id:
+                    card1.is_matched, card2.is_matched = True, True
+                else:
+                    card1.flip();
+                    card2.flip()
+                active_cards.clear()
+
+        else:  # Logic for Novice and Beginner
+            max_visible = 3 if rank == 'Novice' else 2
+
+            if newly_flipped_card:
+                match_found = False
+                # Check for a match with any existing active card
+                for card in active_cards:
+                    if card.shape_id == newly_flipped_card.shape_id:
+                        moves += 1
+                        card.is_matched, newly_flipped_card.is_matched = True, True
+                        active_cards.remove(card)
+                        match_found = True
+                        break
+
+                if not match_found:
+                    active_cards.append(newly_flipped_card)
+
+                # Enforce visibility limit
+                if len(active_cards) > max_visible:
+                    card_to_hide = active_cards.pop(0)
+                    if not card_to_hide.is_matched:
+                        card_to_hide.flip()
+
+        # --- Win Condition & Drawing ---
         if not game_over and all(card.is_matched for card in cards):
             game_over = True
-            total_time = elapsed_time
-            pygame.time.wait(1000)  # Pause to celebrate
-            return {'status': 'won', 'moves': moves, 'time': total_time}
+            pygame.time.wait(1000)
+            return {'status': 'won', 'moves': moves, 'time': elapsed_time}
 
         draw_gradient_background(screen)
         for card in cards: card.draw(screen)
@@ -349,109 +325,82 @@ def run_game_session(screen, clock, game_state):
 
 
 def run_summary_screen(screen, clock, game_state, last_game_stats):
-    # Update game state
     game_state['games_played'] += 1
     game_state['total_play_time'] += last_game_stats['time']
+    new_rank_unlocked, old_rank = False, game_state['rank_name']
 
-    # Check for level up
-    new_rank_unlocked = False
-    old_rank = game_state['rank_name']
-    for games_req, rank_info in RANKS.items():
+    current_rank_games = 0
+    for games_req in sorted(RANKS.keys(), reverse=True):
         if game_state['games_played'] >= games_req:
-            game_state['rank_name'] = rank_info['name']
-            game_state['medal_color'] = rank_info['medal_color']
+            current_rank_games = games_req
+            break
 
-    if old_rank != game_state['rank_name']:
+    if game_state['rank_name'] != RANKS[current_rank_games]['name']:
         new_rank_unlocked = True
-        unlock_info = RANKS[game_state['games_played']]['unlock']
-        if unlock_info[0] == 'palette':
-            game_state['unlocked_palettes'].append(unlock_info[1])
-        elif unlock_info[0] == 'card_back':
-            game_state['unlocked_card_backs'].append(unlock_info[1])
+        game_state['rank_name'] = RANKS[current_rank_games]['name']
+        game_state['medal_color'] = RANKS[current_rank_games]['medal_color']
+        if 'unlock' in RANKS[current_rank_games]:
+            unlock_type, unlock_name = RANKS[current_rank_games]['unlock']
+            if unlock_type == 'palette':
+                game_state['unlocked_palettes'].append(unlock_name)
+            elif unlock_type == 'card_back':
+                game_state['unlocked_card_backs'].append(unlock_name)
 
-    # UI Elements
-    next_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 80, 200, 50, "Next Game")
-
-    # Cycle buttons for cosmetics
-    palette_button = Button(450, 400, 250, 40, f"Palette: {game_state['current_palette']}", (80, 80, 150),
-                            (100, 100, 180))
-    card_back_button = Button(450, 450, 250, 40, f"Card Back: {game_state['current_card_back']}", (80, 80, 150),
-                              (100, 100, 180))
-
-    # Animation variables
-    animation_start_time = time.time()
-    animation_duration = 1.5  # seconds
+    next_btn = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 80, 200, 50, "Next Game")
+    palette_btn = Button(450, 400, 250, 40, f"Palette: {game_state['current_palette']}", (80, 80, 150), (100, 100, 180))
+    card_back_btn = Button(450, 450, 250, 40, f"Card Back: {game_state['current_card_back']}", (80, 80, 150),
+                           (100, 100, 180))
+    anim_start_time = time.time()
 
     running = True
     while running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return 'quit'
-            if next_game_button.handle_event(event):
-                return 'continue'
-
-            if palette_button.handle_event(event):
-                current_idx = game_state['unlocked_palettes'].index(game_state['current_palette'])
-                next_idx = (current_idx + 1) % len(game_state['unlocked_palettes'])
-                game_state['current_palette'] = game_state['unlocked_palettes'][next_idx]
-                palette_button.text = f"Palette: {game_state['current_palette']}"
-
-            if card_back_button.handle_event(event):
-                current_idx = game_state['unlocked_card_backs'].index(game_state['current_card_back'])
-                next_idx = (current_idx + 1) % len(game_state['unlocked_card_backs'])
-                game_state['current_card_back'] = game_state['unlocked_card_backs'][next_idx]
-                card_back_button.text = f"Card Back: {game_state['current_card_back']}"
+            if event.type == pygame.QUIT: return 'quit'
+            if next_btn.handle_event(event): return 'continue'
+            if palette_btn.handle_event(event):
+                idx = (game_state['unlocked_palettes'].index(game_state['current_palette']) + 1) % len(
+                    game_state['unlocked_palettes'])
+                game_state['current_palette'] = game_state['unlocked_palettes'][idx]
+                palette_btn.text = f"Palette: {game_state['current_palette']}"
+            if card_back_btn.handle_event(event):
+                idx = (game_state['unlocked_card_backs'].index(game_state['current_card_back']) + 1) % len(
+                    game_state['unlocked_card_backs'])
+                game_state['current_card_back'] = game_state['unlocked_card_backs'][idx]
+                card_back_btn.text = f"Card Back: {game_state['current_card_back']}"
 
         draw_gradient_background(screen)
-
-        # --- Draw Titles ---
         draw_text(screen, "Round Complete!", 70, SCREEN_WIDTH // 2, 60)
 
-        # --- Draw Stats Box ---
-        stats_box = pygame.Rect(50, 120, 350, 400)
+        stats_box = pygame.Rect(50, 120, 350, 400);
         pygame.draw.rect(screen, (0, 0, 0, 150), stats_box, border_radius=15)
         draw_text(screen, "Last Round", 40, stats_box.centerx, 150)
         draw_text(screen, f"Moves: {last_game_stats['moves']}", 30, stats_box.centerx, 200)
         draw_text(screen, f"Time: {last_game_stats['time']}s", 30, stats_box.centerx, 240)
-
         draw_text(screen, "Overall Stats", 40, stats_box.centerx, 320)
         draw_text(screen, f"Games Played: {game_state['games_played']}", 30, stats_box.centerx, 370)
-        total_m, total_s = divmod(game_state['total_play_time'], 60)
-        draw_text(screen, f"Total Play Time: {total_m}m {total_s}s", 30, stats_box.centerx, 410)
+        m, s = divmod(game_state['total_play_time'], 60)
+        draw_text(screen, f"Total Play Time: {m}m {s}s", 30, stats_box.centerx, 410)
 
-        # --- Draw Rank and Unlocks Box ---
-        rank_box = pygame.Rect(420, 120, 330, 400)
+        rank_box = pygame.Rect(420, 120, 330, 400);
         pygame.draw.rect(screen, (0, 0, 0, 150), rank_box, border_radius=15)
         draw_text(screen, "Your Rank", 40, rank_box.centerx, 150)
 
-        # --- Level Up Animation ---
-        if new_rank_unlocked:
-            elapsed = time.time() - animation_start_time
-            if elapsed < animation_duration:
-                # Ease-out cubic interpolation for a smooth "pop"
-                t = elapsed / animation_duration
-                eased_t = 1 - pow(1 - t, 3)
-                current_size = int(80 * eased_t)
-                draw_text(screen, "Rank Up!", 50, rank_box.centerx, 200)
-                draw_medal(screen, rank_box.centerx, 280, current_size, game_state['medal_color'])
-                draw_text(screen, game_state['rank_name'], int(40 * eased_t), rank_box.centerx, 360)
-            else:  # Animation finished
-                draw_medal(screen, rank_box.centerx, 250, 80, game_state['medal_color'])
-                draw_text(screen, game_state['rank_name'], 40, rank_box.centerx, 340)
-                unlock_info = RANKS[game_state['games_played']]['unlock']
-                draw_text(screen, f"Unlocked: {unlock_info[1]}", 24, rank_box.centerx, 370, (200, 255, 200))
-        else:  # No animation
-            draw_medal(screen, rank_box.centerx, 250, 80, game_state['medal_color'])
+        if new_rank_unlocked and time.time() - anim_start_time < 1.5:
+            t = (time.time() - anim_start_time) / 1.5;
+            eased_t = 1 - pow(1 - t, 3)
+            draw_text(screen, "Rank Up!", 50, rank_box.centerx, 200);
+            draw_medal(screen, rank_box.centerx, 280, int(80 * eased_t), game_state['medal_color']);
+            draw_text(screen, game_state['rank_name'], int(40 * eased_t), rank_box.centerx, 360)
+        else:
+            draw_medal(screen, rank_box.centerx, 250, 80, game_state['medal_color']);
             draw_text(screen, game_state['rank_name'], 40, rank_box.centerx, 340)
+            if new_rank_unlocked: draw_text(screen, f"Unlocked: {RANKS[current_rank_games]['unlock'][1]}", 24,
+                                            rank_box.centerx, 370, (200, 255, 200))
 
-        # Draw Customization Options
         draw_text(screen, "Customize Next Game", 30, rank_box.centerx, 390)
-        palette_button.draw(screen)
-        card_back_button.draw(screen)
-
-        # Draw Next Game button
-        next_game_button.draw(screen)
-
+        palette_btn.draw(screen);
+        card_back_btn.draw(screen);
+        next_btn.draw(screen)
         pygame.display.flip()
         clock.tick(60)
 
@@ -462,30 +411,18 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Memory Card Game")
     clock = pygame.time.Clock()
-
-    # Persistent state across games
     game_state = {
-        'games_played': 0,
-        'total_play_time': 0,
-        'rank_name': 'Novice',
-        'medal_color': RANKS[0]['medal_color'],
-        'unlocked_palettes': ['Default'],
-        'unlocked_card_backs': ['Default'],
-        'current_palette': 'Default',
-        'current_card_back': 'Default'
+        'games_played': 0, 'total_play_time': 0, 'rank_name': 'Novice', 'medal_color': RANKS[0]['medal_color'],
+        'unlocked_palettes': ['Default'], 'unlocked_card_backs': ['Default'],
+        'current_palette': 'Default', 'current_card_back': 'Default'
     }
-
     app_running = True
     while app_running:
         game_result = run_game_session(screen, clock, game_state)
-
         if game_result['status'] == 'quit':
             app_running = False
         elif game_result['status'] == 'won':
-            summary_result = run_summary_screen(screen, clock, game_state, game_result)
-            if summary_result == 'quit':
-                app_running = False
-
+            if run_summary_screen(screen, clock, game_state, game_result) == 'quit': app_running = False
     pygame.quit()
 
 
