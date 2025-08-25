@@ -32,7 +32,26 @@ FONT_GAME_OVER = pygame.font.SysFont("Arial", 64, bold=True)
 
 # Game Window
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Procedural Tower Defense (With Research)")
+pygame.display.set_caption("Procedural Tower Defense (With Maps & Research)")
+
+# --- Map Definitions ---
+MAPS = [
+    {
+        "name": "The Classic",
+        "path": [(-50, 150), (150, 150), (150, 400), (400, 400), (400, 250), (650, 250),
+                 (650, 550), (900, 550), (900, 100), (SCREEN_WIDTH - GAME_PANEL_WIDTH + 50, 100)]
+    },
+    {
+        "name": "Serpentine",
+        "path": [(-50, 100), (850, 100), (850, 300), (100, 300), (100, 500), (850, 500),
+                 (850, 700), (100, 700), (100, SCREEN_HEIGHT + 50)]
+    },
+    {
+        "name": "Crossroads",
+        "path": [(-50, 384), (250, 384), (250, 150), (750, 150), (750, 650), (250, 650),
+                 (250, 484), (900, 484), (900, 250), (SCREEN_WIDTH - GAME_PANEL_WIDTH + 50, 250)]
+    }
+]
 
 # --- Save File and Upgrade Management ---
 player_upgrades = {}
@@ -44,21 +63,14 @@ def load_upgrades():
         with open(SAVE_FILE, 'r') as f:
             player_upgrades = json.load(f)
     else:
-        player_upgrades = {
-            "research_points": 0,
-            "upgrades": {
-                "starting_money": 0,
-                "starting_health": 0,
-                "gatling_damage": 0,
-                "cannon_cost": 0,
-            }
-        }
+        player_upgrades = {"research_points": 0,
+                           "upgrades": {"starting_money": 0, "starting_health": 0, "gatling_damage": 0,
+                                        "cannon_cost": 0}};
         save_upgrades()
 
 
 def save_upgrades():
-    with open(SAVE_FILE, 'w') as f:
-        json.dump(player_upgrades, f, indent=4)
+    with open(SAVE_FILE, 'w') as f: json.dump(player_upgrades, f, indent=4)
 
 
 # --- Global Game Variables ---
@@ -68,11 +80,10 @@ research_menu = None
 
 
 # --- Helper Functions ---
-def distance(p1, p2):
-    return math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
+def distance(p1, p2): return math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
 
 
-# --- Particle and Effect Classes ---
+# --- Classes ---
 class Effect:
     def __init__(self, pos, shape, color, size, duration, vel=None, size_decay=0, alpha_decay=0):
         self.pos, self.shape, self.color, self.size, self.duration = list(pos), shape, list(color), size, duration
@@ -90,16 +101,15 @@ class Effect:
     def draw(self, surface):
         if self.size <= 0: return
         if self.shape == 'circle':
-            temp_surf = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
-            pygame.draw.circle(temp_surf, (*self.color, self.alpha), (self.size, self.size), self.size)
-            surface.blit(temp_surf, (self.pos[0] - self.size, self.pos[1] - self.size))
+            ts = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
+            pygame.draw.circle(ts, (*self.color, self.alpha), (self.size, self.size), self.size)
+            surface.blit(ts, (self.pos[0] - self.size, self.pos[1] - self.size))
 
 
-# --- Game Entity Classes ---
 class Enemy:
     def __init__(self, enemy_type, start_pos):
         self.pos, self.type, self.path_index = list(start_pos), enemy_type, 0
-        self.target_pos, self.is_alive, self.effects = enemy_path[0], True, {}
+        self.target_pos, self.is_alive, self.effects = game.enemy_path[0], True, {}
         if self.type == "grunt":
             self.max_health, self.speed, self.reward, self.color, self.size = 100, 1.5, 10, (50, 150, 50), 20
         elif self.type == "runner":
@@ -118,8 +128,8 @@ class Enemy:
             if effect["timer"] <= 0: del self.effects["slow"]
         if distance(self.pos, self.target_pos) < current_speed:
             self.path_index += 1
-            if self.path_index >= len(enemy_path): self.reach_end(); return
-            self.target_pos = enemy_path[self.path_index]
+            if self.path_index >= len(game.enemy_path): self.reach_end(); return
+            self.target_pos = game.enemy_path[self.path_index]
         dir_x, dir_y = self.target_pos[0] - self.pos[0], self.target_pos[1] - self.pos[1]
         norm = math.sqrt(dir_x ** 2 + dir_y ** 2)
         if norm > 0: self.pos[0] += dir_x / norm * current_speed; self.pos[1] += dir_y / norm * current_speed
@@ -129,13 +139,11 @@ class Enemy:
         rect = pygame.Rect(self.pos[0] - self.size / 2, self.pos[1] - self.size / 2, self.size, self.size)
         pygame.draw.rect(surface, self.color, rect);
         pygame.draw.rect(surface, (0, 0, 0), rect, 2)
-        h_bar_w, h_bar_h, h_ratio = self.size, 5, self.health / self.max_health
-        pygame.draw.rect(surface, COLOR_HEALTH_RED,
-                         (self.pos[0] - h_bar_w / 2, self.pos[1] - self.size / 2 - 10, h_bar_w, h_bar_h))
+        h_w, h_h, h_r = self.size, 5, self.health / self.max_health
+        pygame.draw.rect(surface, COLOR_HEALTH_RED, (self.pos[0] - h_w / 2, self.pos[1] - self.size / 2 - 10, h_w, h_h))
         pygame.draw.rect(surface, COLOR_HEALTH_GREEN,
-                         (self.pos[0] - h_bar_w / 2, self.pos[1] - self.size / 2 - 10, h_bar_w * h_ratio, h_bar_h))
+                         (self.pos[0] - h_w / 2, self.pos[1] - self.size / 2 - 10, h_w * h_r, h_h))
 
-    # --- DEBUGGED: Money is now awarded on death, not on hit ---
     def take_damage(self, amount):
         self.health -= amount
         if self.health <= 0:
@@ -160,30 +168,25 @@ class Tower:
         if self.type == "gatling":
             base_damage, damage_bonus = [8, 15, 25][self.level - 1], 1 + (
                         player_upgrades["upgrades"]["gatling_damage"] * 0.05)
-            self.damage = int(base_damage * damage_bonus)
-            self.range, self.cooldown, self.cost = [120, 140, 160][self.level - 1], [20, 15, 10][self.level - 1], 100
+            self.damage, self.range, self.cooldown, self.cost = int(base_damage * damage_bonus), [120, 140, 160][
+                self.level - 1], [20, 15, 10][self.level - 1], 100
             self.upgrade_cost, self.base_color, self.barrel_color = [150, 250, 0][self.level - 1], (128, 128, 128), (80,
                                                                                                                      80,
                                                                                                                      80)
         elif self.type == "cannon":
             base_cost, cost_reduction = 250, 1 - (player_upgrades["upgrades"]["cannon_cost"] * 0.03)
-            self.cost = int(base_cost * cost_reduction)
-            self.damage, self.range, self.cooldown = [40, 80, 150][self.level - 1], [180, 200, 220][self.level - 1], \
-            [120, 110, 100][self.level - 1]
-            self.splash_radius, self.upgrade_cost = [25, 30, 35][self.level - 1], [300, 500, 0][self.level - 1]
-            self.base_color, self.barrel_color = (40, 40, 40), (20, 20, 20)
+            self.cost, self.damage, self.range, self.cooldown = int(base_cost * cost_reduction), [40, 80, 150][
+                self.level - 1], [180, 200, 220][self.level - 1], [120, 110, 100][self.level - 1]
+            self.splash_radius, self.upgrade_cost, self.base_color, self.barrel_color = [25, 30, 35][self.level - 1], \
+            [300, 500, 0][self.level - 1], (40, 40, 40), (20, 20, 20)
         elif self.type == "slowing":
             self.damage, self.range, self.cooldown, self.cost = 0, [150, 170, 190][self.level - 1], [60, 60, 60][
                 self.level - 1], 150
-            self.slow_factor, self.slow_duration, self.upgrade_cost = [0.6, 0.5, 0.4][self.level - 1], 60, \
-            [100, 150, 0][self.level - 1]
-            self.base_color, self.barrel_color = (50, 100, 200), (100, 150, 255)
+            self.slow_factor, self.slow_duration, self.upgrade_cost, self.base_color, self.barrel_color = \
+            [0.6, 0.5, 0.4][self.level - 1], 60, [100, 150, 0][self.level - 1], (50, 100, 200), (100, 150, 255)
 
     def upgrade(self):
-        if game and self.level < 3 and game.player_money >= self.upgrade_cost:
-            game.player_money -= self.upgrade_cost;
-            self.level += 1;
-            self.set_stats()
+        if game and self.level < 3 and game.player_money >= self.upgrade_cost: game.player_money -= self.upgrade_cost; self.level += 1; self.set_stats()
 
     def find_target(self, enemies):
         if self.target and (
@@ -198,9 +201,11 @@ class Tower:
         if self.target and self.cooldown_timer == 0: self.cooldown_timer = self.cooldown; self.fire(projectiles,
                                                                                                     effects)
 
+    # --- DEBUGGED ---
     def fire(self, projectiles, effects):
         if self.type == "gatling":
             projectiles.append(Projectile(self.pos, self.target, self.damage, 5, (255, 255, 0)))
+            # The multi-assignment was split into two lines to fix the UnboundLocalError
             angle = math.atan2(self.target.pos[1] - self.pos[1], self.target.pos[0] - self.pos[0])
             flash_pos = (self.pos[0] + 25 * math.cos(angle), self.pos[1] + 25 * math.sin(angle))
             effects.append(Effect(flash_pos, 'circle', (255, 255, 150), 8, 5, size_decay=1.5))
@@ -297,8 +302,6 @@ class Button:
 
 
 # --- Game Controller Class ---
-enemy_path = [(-50, 150), (150, 150), (150, 400), (400, 400), (400, 250), (650, 250), (650, 550), (900, 550),
-              (900, 100), (SCREEN_WIDTH - GAME_PANEL_WIDTH + 50, 100)]
 wave_definitions = [[("grunt", 10, 60)], [("grunt", 15, 50)], [("runner", 5, 80), ("grunt", 10, 40)],
                     [("grunt", 20, 30), ("runner", 8, 70)], [("tank", 3, 200)], [("tank", 5, 180), ("runner", 15, 40)],
                     [("grunt", 30, 20)], [("tank", 8, 150), ("grunt", 25, 25)], [("runner", 40, 15)],
@@ -306,7 +309,8 @@ wave_definitions = [[("grunt", 10, 60)], [("grunt", 15, 50)], [("runner", 5, 80)
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, map_data):
+        self.enemy_path = map_data['path']
         self.towers, self.enemies, self.projectiles, self.effects = [], [], [], []
         self.wave_spawn_list, self.wave_spawn_timer = [], 0
         self.time_between_waves, self.wave_cooldown = 900, 900
@@ -366,39 +370,48 @@ class Game:
 
     def place_tower(self, pos):
         path_rects = [pygame.Rect(min(p1[0], p2[0]) - 25, min(p1[1], p2[1]) - 25, abs(p1[0] - p2[0]) + 50,
-                                  abs(p1[1] - p2[1]) + 50) for i in range(len(enemy_path) - 1) for p1, p2 in
-                      [(enemy_path[i], enemy_path[i + 1])]]
+                                  abs(p1[1] - p2[1]) + 50) for i in range(len(self.enemy_path) - 1) for p1, p2 in
+                      [(self.enemy_path[i], self.enemy_path[i + 1])]]
         if any(r.collidepoint(pos) for r in path_rects) or any(distance(pos, t.pos) < 40 for t in self.towers): return
         new_tower = Tower(pos, self.placing_tower_type)
         if self.player_money >= new_tower.cost: self.player_money -= new_tower.cost; self.towers.append(
             new_tower); self.placing_tower_type = None
 
-    # --- DEBUGGED: Added logic to transition to GAME_OVER on a win ---
     def update(self):
         global game_state
         if self.player_health <= 0:
             game_state = "GAME_OVER"; return
         elif not self.wave_spawn_list and not self.enemies and self.current_wave >= len(wave_definitions):
             game_state = "GAME_OVER"; return
-
         for t in self.towers: t.update(self.enemies, self.projectiles, self.effects)
         for p in self.projectiles: p.update(self.enemies, self.effects)
         for e in self.effects: e.update()
         for e in self.enemies: e.update()
-        self.enemies[:] = [e for e in self.enemies if e.is_alive]
-        self.projectiles[:] = [p for p in self.projectiles if p.is_active]
+        self.enemies[:] = [e for e in self.enemies if e.is_alive];
+        self.projectiles[:] = [p for p in self.projectiles if p.is_active];
         self.effects[:] = [e for e in self.effects if e.is_active]
         if self.wave_spawn_list:
             self.wave_spawn_timer += 1
             if self.wave_spawn_list and self.wave_spawn_list[0][1] < self.wave_spawn_timer:
                 e_type, _ = self.wave_spawn_list.pop(0);
-                self.enemies.append(Enemy(e_type, enemy_path[0]))
+                self.enemies.append(Enemy(e_type, self.enemy_path[0]))
         elif not self.enemies:
             if self.wave_cooldown < self.time_between_waves: self.wave_cooldown += 1
             if self.wave_cooldown >= self.time_between_waves and self.current_wave < len(wave_definitions):
                 self.start_wave_button.text = f"Start Wave {self.current_wave + 1}"
             elif self.current_wave >= len(wave_definitions):
                 self.start_wave_button.text = "YOU WIN!"
+
+    def draw_map(self, surface):
+        for y in range(SCREEN_HEIGHT):
+            r = y / SCREEN_HEIGHT;
+            color = (int(COLOR_GRASS_TOP[0] * (1 - r) + COLOR_GRASS_BOTTOM[0] * r),
+                     int(COLOR_GRASS_TOP[1] * (1 - r) + COLOR_GRASS_BOTTOM[1] * r),
+                     int(COLOR_GRASS_TOP[2] * (1 - r) + COLOR_GRASS_BOTTOM[2] * r))
+            pygame.draw.line(surface, color, (0, y), (SCREEN_WIDTH - GAME_PANEL_WIDTH, y))
+        for i in range(len(self.enemy_path) - 1): pygame.draw.line(surface, COLOR_PATH, self.enemy_path[i],
+                                                                   self.enemy_path[i + 1], 50)
+        for p in self.enemy_path: pygame.draw.circle(surface, COLOR_PATH, p, 25)
 
     def draw(self, surface):
         self.draw_map(surface)
@@ -408,16 +421,6 @@ class Game:
         for e in self.effects: e.draw(surface)
         if self.placing_tower_type: self.draw_placement_preview(surface)
         self.draw_ui(surface)
-
-    def draw_map(self, surface):
-        for y in range(SCREEN_HEIGHT):
-            r = y / SCREEN_HEIGHT;
-            color = (int(COLOR_GRASS_TOP[0] * (1 - r) + COLOR_GRASS_BOTTOM[0] * r),
-                     int(COLOR_GRASS_TOP[1] * (1 - r) + COLOR_GRASS_BOTTOM[1] * r),
-                     int(COLOR_GRASS_TOP[2] * (1 - r) + COLOR_GRASS_BOTTOM[2] * r))
-            pygame.draw.line(surface, color, (0, y), (SCREEN_WIDTH - GAME_PANEL_WIDTH, y))
-        for i in range(len(enemy_path) - 1): pygame.draw.line(surface, COLOR_PATH, enemy_path[i], enemy_path[i + 1], 50)
-        for p in enemy_path: pygame.draw.circle(surface, COLOR_PATH, p, 25)
 
     def draw_placement_preview(self, surface):
         mouse_pos = pygame.mouse.get_pos()
@@ -460,39 +463,45 @@ class Game:
 # --- Research Menu Class ---
 class ResearchMenu:
     def __init__(self):
-        self.buttons = []
+        self.buttons, self.selected_map_index = [], 0
         self.setup_menu()
 
     def get_upgrade_cost(self, name):
-        base_costs = {"starting_money": 20, "starting_health": 30, "gatling_damage": 50, "cannon_cost": 40}
-        level = player_upgrades["upgrades"][name]
+        base_costs = {"starting_money": 20, "starting_health": 30, "gatling_damage": 50, "cannon_cost": 40};
+        level = player_upgrades["upgrades"][name];
         return int(base_costs[name] * (1.6 ** level))
 
     def upgrade_stat(self, name):
         cost = self.get_upgrade_cost(name)
-        if player_upgrades["research_points"] >= cost:
-            player_upgrades["research_points"] -= cost;
-            player_upgrades["upgrades"][name] += 1;
-            save_upgrades()
+        if player_upgrades["research_points"] >= cost: player_upgrades["research_points"] -= cost;
+        player_upgrades["upgrades"][name] += 1; save_upgrades()
 
     def setup_menu(self):
         self.buttons = [
             Button((SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT - 100, 300, 60), "Start New Game", self.start_game)]
-        self.buttons.append(Button((300, 250, 150, 50), "Upgrade", lambda: self.upgrade_stat("starting_money"),
+        self.buttons.append(Button((270, 250, 150, 50), "Upgrade", lambda: self.upgrade_stat("starting_money"),
                                    lambda: player_upgrades["research_points"] >= self.get_upgrade_cost(
                                        "starting_money")))
-        self.buttons.append(Button((300, 350, 150, 50), "Upgrade", lambda: self.upgrade_stat("starting_health"),
+        self.buttons.append(Button((270, 350, 150, 50), "Upgrade", lambda: self.upgrade_stat("starting_health"),
                                    lambda: player_upgrades["research_points"] >= self.get_upgrade_cost(
                                        "starting_health")))
-        self.buttons.append(Button((800, 250, 150, 50), "Upgrade", lambda: self.upgrade_stat("gatling_damage"),
+        self.buttons.append(Button((270, 450, 150, 50), "Upgrade", lambda: self.upgrade_stat("gatling_damage"),
                                    lambda: player_upgrades["research_points"] >= self.get_upgrade_cost(
                                        "gatling_damage")))
-        self.buttons.append(Button((800, 350, 150, 50), "Upgrade", lambda: self.upgrade_stat("cannon_cost"),
+        self.buttons.append(Button((270, 550, 150, 50), "Upgrade", lambda: self.upgrade_stat("cannon_cost"),
                                    lambda: player_upgrades["research_points"] >= self.get_upgrade_cost("cannon_cost")))
+        self.buttons.append(Button((800, 650, 50, 50), "<", self.prev_map));
+        self.buttons.append(Button((1030, 650, 50, 50), ">", self.next_map))
 
     def start_game(self):
         global game, game_state
-        game, game_state = Game(), "IN_GAME"
+        game, game_state = Game(MAPS[self.selected_map_index]), "IN_GAME"
+
+    def prev_map(self):
+        self.selected_map_index = (self.selected_map_index - 1 + len(MAPS)) % len(MAPS)
+
+    def next_map(self):
+        self.selected_map_index = (self.selected_map_index + 1) % len(MAPS)
 
     def handle_events(self, events):
         global game_running
@@ -502,18 +511,19 @@ class ResearchMenu:
 
     def draw(self, surface):
         surface.fill((20, 30, 40))
-        title_surf = FONT_TITLE.render("Research & Development", True, COLOR_TEXT);
-        surface.blit(title_surf, (SCREEN_WIDTH / 2 - title_surf.get_width() / 2, 50))
-        rp_surf = FONT_UI.render(f"Research Points: {player_upgrades['research_points']} RP", True, (255, 215, 0));
-        surface.blit(rp_surf, (SCREEN_WIDTH / 2 - rp_surf.get_width() / 2, 120))
+        ts = FONT_TITLE.render("Research & Development", True, COLOR_TEXT);
+        surface.blit(ts, (SCREEN_WIDTH / 2 - ts.get_width() / 2, 30))
+        rs = FONT_UI.render(f"Research Points: {player_upgrades['research_points']} RP", True, (255, 215, 0));
+        surface.blit(rs, (SCREEN_WIDTH / 2 - rs.get_width() / 2, 80))
         self.draw_upgrade_info(surface, "starting_money", "Bonus Starting Money",
-                               f"+${player_upgrades['upgrades']['starting_money'] * 50}", 100, 250)
+                               f"+${player_upgrades['upgrades']['starting_money'] * 50}", 50, 250)
         self.draw_upgrade_info(surface, "starting_health", "Bonus Starting Health",
-                               f"+{player_upgrades['upgrades']['starting_health']} HP", 100, 350)
+                               f"+{player_upgrades['upgrades']['starting_health']} HP", 50, 350)
         self.draw_upgrade_info(surface, "gatling_damage", "Gatling Damage",
-                               f"+{player_upgrades['upgrades']['gatling_damage'] * 5}%", 600, 250)
+                               f"+{player_upgrades['upgrades']['gatling_damage'] * 5}%", 50, 450)
         self.draw_upgrade_info(surface, "cannon_cost", "Cannon Cost Reduction",
-                               f"-{player_upgrades['upgrades']['cannon_cost'] * 3}%", 600, 350)
+                               f"-{player_upgrades['upgrades']['cannon_cost'] * 3}%", 50, 550)
+        self.draw_map_preview(surface)
         for button in self.buttons: button.draw(surface)
 
     def draw_upgrade_info(self, surface, name, title, effect_text, x, y):
@@ -522,35 +532,49 @@ class ResearchMenu:
         surface.blit(FONT_UI.render(f"Current: {effect_text}", True, (150, 255, 150)), (x, y))
         surface.blit(FONT_UI.render(f"Cost: {cost} RP", True, (255, 215, 0)), (x, y + 25))
 
+    def draw_map_preview(self, surface):
+        preview_rect = pygame.Rect(700, 200, 480, 400)
+        pygame.draw.rect(surface, (10, 15, 20), preview_rect);
+        pygame.draw.rect(surface, COLOR_TEXT, preview_rect, 2)
+        map_data = MAPS[self.selected_map_index]
+        name_surf = FONT_TITLE.render(map_data['name'], True, COLOR_TEXT);
+        surface.blit(name_surf, (preview_rect.centerx - name_surf.get_width() / 2, preview_rect.top - 50))
+        path = map_data['path']
+        min_x = min(p[0] for p in path if p[0] > 0);
+        max_x = max(p[0] for p in path if p[0] < SCREEN_WIDTH - GAME_PANEL_WIDTH)
+        min_y = min(p[1] for p in path);
+        max_y = max(p[1] for p in path)
+        path_w, path_h = max_x - min_x, max_y - min_y
+        if path_w == 0 or path_h == 0: return  # Avoid division by zero for straight line paths
+        scale = min((preview_rect.width - 40) / path_w, (preview_rect.height - 40) / path_h)
+        scaled_points = [
+            (preview_rect.left + 20 + (p[0] - min_x) * scale, preview_rect.top + 20 + (p[1] - min_y) * scale) for p in
+            path]
+        if len(scaled_points) > 1: pygame.draw.lines(surface, COLOR_PATH, False, scaled_points, 10)
+
 
 # --- Main Game Loop ---
 if __name__ == "__main__":
     clock = pygame.time.Clock()
-    load_upgrades()
+    load_upgrades()  # Call the function on its own line
     research_menu = ResearchMenu()
     game_running = True
     game_over_button = Button((SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT / 2 + 80, 300, 50), "Return to Menu", lambda: None)
     final_wave, earned_rp = 0, 0
-
     while game_running:
         events = pygame.event.get()
-
         if game_state == "MAIN_MENU":
             research_menu.handle_events(events)
             research_menu.draw(screen)
-
         elif game_state == "IN_GAME":
             if game: game.handle_events(events); game.update(); game.draw(screen)
-
         elif game_state == "GAME_OVER":
             if game:
-                final_wave = game.current_wave
+                final_wave = game.current_wave;
                 earned_rp = final_wave * 10 if final_wave >= len(wave_definitions) else (final_wave - 1) * 10
-                earned_rp = max(0, earned_rp)  # Ensure RP is not negative
-                player_upgrades["research_points"] += earned_rp
-                save_upgrades()
+                player_upgrades["research_points"] += max(0, earned_rp);
+                save_upgrades();
                 game = None
-
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA);
             overlay.fill((0, 0, 0, 180));
             screen.blit(overlay, (0, 0))
@@ -560,13 +584,10 @@ if __name__ == "__main__":
             screen.blit(wave_text, wave_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)))
             rp_text = FONT_UI.render(f"You earned {earned_rp} Research Points!", True, (255, 215, 0));
             screen.blit(rp_text, rp_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 40)))
-
             for event in events:
                 if event.type == pygame.QUIT: game_running = False
                 if game_over_button.handle_event(event): game_state = "MAIN_MENU"
             game_over_button.draw(screen)
-
         pygame.display.flip()
         clock.tick(60)
-
     pygame.quit()
