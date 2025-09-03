@@ -523,8 +523,11 @@ class Game:
 
         # Wave Management
         self.wave_data = {
-            1: {"enemies": [("goblin", 5)], "spawn_delay": 60}, # 5 goblins, 60 frames between each
+            1: {"enemies": [("goblin", 5)], "spawn_delay": 60},  # 5 goblins, 60 frames between each
             2: {"enemies": [("goblin", 10), ("orc", 2)], "spawn_delay": 50},
+            3: {"enemies": [("goblin", 15), ("orc", 5)], "spawn_delay": 40},
+            4: {"enemies": [("orc", 8), ("goblin", 10)], "spawn_delay": 35},
+            5: {"enemies": [("goblin", 20), ("orc", 10)], "spawn_delay": 30},
             # Add more waves for scalability
         }
         self.current_wave_enemies_to_spawn = []
