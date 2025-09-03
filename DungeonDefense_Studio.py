@@ -45,7 +45,8 @@ GAME_STATE = {
     "money": 5200,
     "score": 0,
     "wave_number": 0,
-    "lives": 10
+    "lives": 10,
+    "start_wave_requested": False # NEW: Flag to request wave start
 }
 
 # --- Game Utility Functions ---
@@ -472,7 +473,7 @@ class UI:
             # Handle Start Wave button click
             if self.start_wave_button["rect"].collidepoint(mouse_pos):
                 if not game_state["wave_active"]:
-                    game_state["wave_active"] = True  # This will trigger the wave start logic in Game.update
+                    game_state["start_wave_requested"] = True # Signal to Game to start wave
                     return True  # Click handled
             return False  # Click was in UI panel but not on an interactive element
         return False  # Click was outside UI panel
@@ -556,6 +557,9 @@ class Game:
                     if self.ui.handle_click((mouse_x, mouse_y), GAME_STATE):
                         # UI handled the click
                         pass
+                    if GAME_STATE["start_wave_requested"]:
+                        self.start_wave()
+                        GAME_STATE["start_wave_requested"] = False  # Reset the flag
                     elif GAME_STATE["placing_trap"] and mouse_y < SCREEN_HEIGHT - self.ui.panel_height:
                         # Attempt to place a trap
                         grid_x, grid_y = world_to_grid((mouse_x, mouse_y))
@@ -574,12 +578,6 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     if not GAME_STATE["wave_active"] and not self.current_wave_enemies_to_spawn:
-                        self.start_wave()
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    # Remove the 'not self.current_wave_enemies_to_spawn' check if you want SPACE to start any wave.
-                    # It's better to rely on the start_wave method's internal logic.
-                    if not GAME_STATE["wave_active"]:  # Only start a new wave if one isn't already active
                         self.start_wave()
 
     def update(self, dt):
