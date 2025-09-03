@@ -37,5 +37,11 @@ Analyze code again and write update to polish game even further. Identify "low h
 But at the same time make sure to keep the current game functionality in place.
 Make your own judgement what updates should be implemented and present me with final fully update code for  game.
 FOLLOW UP 2:
-Implement Deeper Gameplay Mechanics:  After a game ends (win or lose), award the player "Research Points" based on how many waves they cleared. They can then spend these points in a simple menu on small, permanent upgrades that apply to all future games.
+Implement Deeper Gameplay Mechanics:  After a game ends (win or lose), award the player "Research Points" based on how many waves they cleared. They can then spend these points in a simple menu on small, permanent upgrades that apply to all future games. Implement also engaging game mechanics that are similar to Dungeon Warfare series that focuses Focuses on trapping and defending against waves of enemies in a dungeon setting, requiring careful trap placement and upgradesFocuses on trapping and defending against waves of enemies in a dungeon setting, that will make the game addictive to play. Game should be strictly a single player and offline.  I want you to write complete code of the game and its graphic interface.
 
+
+PROMPT:
+Create visually appealing Dungeon Warfare like tower defense game in Python using Pygame library. Game mechanics should focus on trapping and defending against waves of enemies in a dungeon setting, requiring careful trap placement and upgrades.  Don't use any external images to achieve it. Python code will generate all necessary graphic elements used by game.
+Try to make your design expandable to make game easy to grow and enhance in the future.
+NOTE: free Google Studio now only offer 8K output so I need to use continue functionality to get full code. PROMPT to be applied:
+continue to write rest of the from previous prompt, that I can attach to code from previous prompt
