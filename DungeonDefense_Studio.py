@@ -10,6 +10,7 @@ GRID_WIDTH = SCREEN_WIDTH // GRID_SIZE
 GRID_HEIGHT = (SCREEN_HEIGHT - 100) // GRID_SIZE
 INFO_PANEL_HEIGHT = 100
 FPS = 60
+TOTAL_WAVES = 10
 
 # Colors
 COLOR_WALL = (50, 50, 50)
@@ -23,6 +24,10 @@ COLOR_SPIKE_TRAP = (120, 120, 120)
 COLOR_SPIKE_TRAP_ARMED = (180, 180, 180)
 COLOR_SLOW_TRAP = (100, 100, 200)
 COLOR_SLOW_TRAP_ACTIVE = (150, 150, 255)
+COLOR_GAME_OVER_BG = (100, 0, 0)
+COLOR_WIN_BG = (0, 100, 0)
+COLOR_BUTTON = (0, 80, 150)
+COLOR_BUTTON_HOVER = (50, 130, 200)
 
 
 # --- Game Object Classes ---
@@ -30,7 +35,7 @@ COLOR_SLOW_TRAP_ACTIVE = (150, 150, 255)
 class Enemy(pygame.sprite.Sprite):
     """ A class to represent the enemies """
 
-    def __init__(self, path):
+    def __init__(self, path, health):
         super().__init__()
         self.path = path
         self.path_index = 0
@@ -40,7 +45,8 @@ class Enemy(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(
             center=(self.x * GRID_SIZE + GRID_SIZE // 2, self.y * GRID_SIZE + GRID_SIZE // 2))
         self.speed = 2
-        self.health = 10
+        self.max_health = health
+        self.health = health
         self.is_slowed = False
         self.slow_timer = 0
 
@@ -84,6 +90,8 @@ class Enemy(pygame.sprite.Sprite):
         self.health -= amount
         if self.health <= 0:
             self.kill()
+            return True
+        return False
 
     def slow(self, duration):
         """ Applies a slow effect to the enemy """
@@ -116,7 +124,7 @@ class SpikeTrap(Trap):
         super().__init__(x, y, 50, 30)
         self.damage = 5
         self.cooldown = 2
-        self.timer = self.cooldown
+        self.timer = 0  # Start ready to fire
         self.armed = True
         self.draw()
 
@@ -136,16 +144,22 @@ class SpikeTrap(Trap):
 
     def update(self, dt, enemies):
         """ Updates the trap's state and damages enemies """
+        killed_enemy = False
         self.timer -= dt
-        if self.timer <= 0:
+        if not self.armed and self.timer <= 0:
             self.armed = True
             self.draw()
-            self.timer = self.cooldown
-            for enemy in enemies:
-                if self.rect.colliderect(enemy.rect):
-                    enemy.take_damage(self.damage)
-            self.armed = False
-            self.draw()
+
+        if self.armed and self.timer <= 0:
+            enemies_on_trap = [enemy for enemy in enemies if self.rect.colliderect(enemy.rect)]
+            if enemies_on_trap:
+                for enemy in enemies_on_trap:
+                    if enemy.take_damage(self.damage):
+                        killed_enemy = True
+                self.armed = False
+                self.timer = self.cooldown
+                self.draw()
+        return killed_enemy
 
     def upgrade(self):
         """ Upgrades the spike trap's damage """
@@ -172,11 +186,36 @@ class SlowTrap(Trap):
         for enemy in enemies:
             if self.rect.colliderect(enemy.rect):
                 enemy.slow(self.slow_duration)
+        return False  # Slow trap doesn't kill directly
 
     def upgrade(self):
         """ Upgrades the slow trap's duration """
         super().upgrade()
         self.slow_duration += 1.5
+
+
+# --- Button Class ---
+class Button:
+    """ A simple button class """
+
+    def __init__(self, x, y, width, height, text, font):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.font = font
+        self.is_hovered = False
+
+    def draw(self, screen):
+        """ Draws the button on the screen """
+        color = COLOR_BUTTON_HOVER if self.is_hovered else COLOR_BUTTON
+        pygame.draw.rect(screen, color, self.rect, border_radius=10)
+        pygame.draw.rect(screen, COLOR_UI_BORDER, self.rect, 2, border_radius=10)
+        text_surf = self.font.render(self.text, True, COLOR_TEXT)
+        text_rect = text_surf.get_rect(center=self.rect.center)
+        screen.blit(text_surf, text_rect)
+
+    def check_hover(self, mouse_pos):
+        """ Checks if the mouse is hovering over the button """
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
 
 
 # --- Game Class ---
@@ -190,10 +229,22 @@ class Game:
         pygame.display.set_caption("Dungeon Warfare")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont(None, 36)
+        self.large_font = pygame.font.SysFont(None, 72)
         self.running = True
+        self.game_state = "playing"  # "playing", "game_over", "victory"
+        self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 100, 200, 50, "New Game", self.font)
+        self.reset_game()
 
-        self.grid = self.create_grid()
-        self.path = self.find_path()
+    def reset_game(self):
+        """ Resets the game to its initial state """
+
+        # --- FIX IMPLEMENTATION ---
+        # Loop until a valid path is found
+        self.path = []
+        while not self.path:
+            self.grid = self.create_grid()
+            self.path = self.find_path()
+        # --- END OF FIX ---
 
         self.enemies = pygame.sprite.Group()
         self.traps = pygame.sprite.Group()
@@ -204,15 +255,20 @@ class Game:
         self.wave_timer = 10
         self.wave_in_progress = False
 
+        self.enemies_killed = 0
+        self.money_earned = 200
+
         self.selected_trap_type = None
         self.selected_trap_instance = None
+        self.game_state = "playing"
 
     def create_grid(self):
         """ Creates the dungeon grid """
         grid = [[1 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
-                if random.random() < 0.3:
+                # Avoid blocking start/end columns
+                if 1 < x < GRID_WIDTH - 2 and random.random() < 0.3:
                     grid[y][x] = 0  # 0 for wall, 1 for path
         # Ensure a clear path at the start and end
         grid[GRID_HEIGHT // 2][0] = 1
@@ -248,7 +304,7 @@ class Game:
                         f_score[neighbor] = g_score[neighbor] + self.heuristic(neighbor, end)
                         if neighbor not in open_set:
                             open_set.add(neighbor)
-        return []
+        return []  # Return empty list if no path is found
 
     def heuristic(self, a, b):
         """ Heuristic for A* """
@@ -275,17 +331,26 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                self.handle_mouse_click(event.pos)
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_1:
-                    self.selected_trap_type = "spike"
-                elif event.key == pygame.K_2:
-                    self.selected_trap_type = "slow"
-                elif event.key == pygame.K_u and self.selected_trap_instance:
-                    if self.money >= self.selected_trap_instance.upgrade_cost:
-                        self.money -= self.selected_trap_instance.upgrade_cost
-                        self.selected_trap_instance.upgrade()
+
+            if self.game_state == "playing":
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Left click
+                        self.handle_mouse_click(event.pos)
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_1:
+                        self.selected_trap_type = "spike"
+                        self.selected_trap_instance = None
+                    elif event.key == pygame.K_2:
+                        self.selected_trap_type = "slow"
+                        self.selected_trap_instance = None
+                    elif event.key == pygame.K_u and self.selected_trap_instance:
+                        if self.money >= self.selected_trap_instance.upgrade_cost:
+                            self.money -= self.selected_trap_instance.upgrade_cost
+                            self.selected_trap_instance.upgrade()
+            else:  # Game over or victory state
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if self.new_game_button.rect.collidepoint(event.pos):
+                        self.reset_game()
 
     def handle_mouse_click(self, pos):
         """ Handles mouse clicks for placing and selecting traps """
@@ -297,6 +362,7 @@ class Game:
                     self.place_trap(grid_x, grid_y)
                 elif trap_at_pos:
                     self.selected_trap_instance = trap_at_pos
+                    self.selected_trap_type = None
 
     def get_trap_at(self, x, y):
         """ Gets the trap at a given grid coordinate """
@@ -316,39 +382,58 @@ class Game:
 
     def update(self, dt):
         """ Updates all game objects """
-        self.enemies.update(dt)
-        self.traps.update(dt, self.enemies)
+        if self.game_state == "playing":
+            self.enemies.update(dt)
+            for trap in self.traps:
+                if trap.update(dt, self.enemies):
+                    self.enemies_killed += 1
+                    self.money += 5  # Reward for kill
+                    self.money_earned += 5
 
-        for enemy in list(self.enemies):
-            if enemy.path_index >= len(self.path) - 1:
-                self.lives -= 1
-                enemy.kill()
+            for enemy in list(self.enemies):
+                if enemy.path_index >= len(self.path) - 1:
+                    self.lives -= 1
+                    enemy.kill()
+                    if self.lives <= 0:
+                        self.lives = 0
+                        self.game_state = "game_over"
 
-        if not self.wave_in_progress:
-            self.wave_timer -= dt
-            if self.wave_timer <= 0:
-                self.start_wave()
+            if not self.wave_in_progress:
+                self.wave_timer -= dt
+                if self.wave_timer <= 0:
+                    self.start_wave()
 
-        if self.wave_in_progress and not self.enemies:
-            self.wave_in_progress = False
-            self.wave_timer = 10
+            if self.wave_in_progress and not self.enemies:
+                self.wave_in_progress = False
+                if self.wave >= TOTAL_WAVES:
+                    self.game_state = "victory"
+                else:
+                    self.wave_timer = 10
+        else:
+            self.new_game_button.check_hover(pygame.mouse.get_pos())
 
     def start_wave(self):
         """ Starts a new wave of enemies """
         self.wave += 1
         self.wave_in_progress = True
+        enemy_health = 10 + (self.wave - 1) * 5
         for i in range(self.wave * 5):
-            enemy = Enemy(self.path)
-            enemy.rect.centerx -= i * 30  # Stagger enemy spawns
+            enemy = Enemy(self.path, enemy_health)
+            enemy.rect.centerx -= i * 40  # Stagger enemy spawns more
             self.enemies.add(enemy)
 
     def draw(self):
         """ Draws the game screen """
         self.screen.fill((0, 0, 0))
-        self.draw_grid()
-        self.traps.draw(self.screen)
-        self.enemies.draw(self.screen)
-        self.draw_ui()
+        if self.game_state == "playing":
+            self.draw_grid()
+            self.traps.draw(self.screen)
+            self.enemies.draw(self.screen)
+            self.draw_ui()
+        elif self.game_state == "game_over":
+            self.draw_end_screen("Game Over", COLOR_GAME_OVER_BG)
+        elif self.game_state == "victory":
+            self.draw_end_screen("Victory!", COLOR_WIN_BG)
         pygame.display.flip()
 
     def draw_grid(self):
@@ -374,18 +459,72 @@ class Game:
         lives_text = self.font.render(f"Lives: {self.lives}", True, COLOR_TEXT)
         self.screen.blit(lives_text, (10, SCREEN_HEIGHT - 50))
 
-        wave_text = self.font.render(f"Wave: {self.wave}", True, COLOR_TEXT)
+        wave_text = self.font.render(f"Wave: {self.wave}/{TOTAL_WAVES}", True, COLOR_TEXT)
         self.screen.blit(wave_text, (200, SCREEN_HEIGHT - 90))
 
-        if not self.wave_in_progress:
-            next_wave_text = self.font.render(f"Next Wave in: {int(self.wave_timer)}", True, COLOR_TEXT)
+        if not self.wave_in_progress and self.wave < TOTAL_WAVES:
+            next_wave_text = self.font.render(f"Next Wave in: {int(self.wave_timer) + 1}", True, COLOR_TEXT)
             self.screen.blit(next_wave_text, (200, SCREEN_HEIGHT - 50))
 
-        trap_info_text = self.font.render("Press 1 for Spike Trap (50), 2 for Slow Trap (75)", True, COLOR_TEXT)
+        trap_info_text = self.font.render("1: Spike Trap (50)  2: Slow Trap (75)", True, COLOR_TEXT)
         self.screen.blit(trap_info_text, (400, SCREEN_HEIGHT - 90))
 
-        trap_info_text_2 = self.font.render("Click on a trap and press U to upgrade", True, COLOR_TEXT)
+        trap_info_text_2 = self.font.render("Click a trap, then U to upgrade", True, COLOR_TEXT)
         self.screen.blit(trap_info_text_2, (400, SCREEN_HEIGHT - 50))
+
+        if self.selected_trap_instance:
+            trap = self.selected_trap_instance
+            level_text = f"Level: {trap.level}"
+            cost_text = f"Upgrade Cost: {trap.upgrade_cost}"
+            if isinstance(trap, SpikeTrap):
+                type_text = f"Spike Trap | Dmg: {trap.damage}"
+            elif isinstance(trap, SlowTrap):
+                type_text = f"Slow Trap | Dura: {trap.slow_duration}s"
+
+            sel_text_1 = self.font.render(type_text, True, COLOR_TEXT)
+            self.screen.blit(sel_text_1, (780, SCREEN_HEIGHT - 90))
+            sel_text_2 = self.font.render(f"{level_text} | {cost_text}", True, COLOR_TEXT)
+            self.screen.blit(sel_text_2, (780, SCREEN_HEIGHT - 50))
+
+    def draw_end_screen(self, title_text, bg_color):
+        """ Draws the game over or victory screen """
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((*bg_color, 230))
+        self.screen.blit(overlay, (0, 0))
+
+        # Title
+        title_surf = self.large_font.render(title_text, True, COLOR_TEXT)
+        title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
+        self.screen.blit(title_surf, title_rect)
+
+        # Stats Box
+        stats_box_rect = pygame.Rect(0, 0, 400, 200)
+        stats_box_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20)
+        pygame.draw.rect(self.screen, COLOR_UI_BG, stats_box_rect, border_radius=15)
+        pygame.draw.rect(self.screen, COLOR_UI_BORDER, stats_box_rect, 3, border_radius=15)
+
+        # Stats
+        stats_y_start = stats_box_rect.centery - 45
+
+        waves_survived = self.wave - 1 if self.wave_in_progress else self.wave
+        if self.game_state == "victory":
+            waves_survived = TOTAL_WAVES
+
+        waves_text = self.font.render(f"Waves Survived: {waves_survived} / {TOTAL_WAVES}", True, COLOR_TEXT)
+        waves_rect = waves_text.get_rect(center=(SCREEN_WIDTH // 2, stats_y_start))
+        self.screen.blit(waves_text, waves_rect)
+
+        killed_text = self.font.render(f"Enemies Killed: {self.enemies_killed}", True, COLOR_TEXT)
+        killed_rect = killed_text.get_rect(center=(SCREEN_WIDTH // 2, stats_y_start + 45))
+        self.screen.blit(killed_text, killed_rect)
+
+        money_text = self.font.render(f"Total Money Earned: {self.money_earned}", True, COLOR_TEXT)
+        money_rect = money_text.get_rect(center=(SCREEN_WIDTH // 2, stats_y_start + 90))
+        self.screen.blit(money_text, money_rect)
+
+        self.new_game_button.rect.center = (SCREEN_WIDTH // 2, stats_box_rect.bottom + 60)
+        self.new_game_button.draw(self.screen)
 
 
 if __name__ == "__main__":
