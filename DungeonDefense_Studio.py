@@ -76,18 +76,11 @@ class Particle(pygame.sprite.Sprite):
         self.color = color
         self.is_shockwave = is_shockwave
         if self.is_shockwave:
-            self.max_lifespan = 0.4
-            self.size = 5
-            self.radius = 5
-            self.max_radius = 80
+            self.max_lifespan = 0.4; self.size = 5; self.radius = 5; self.max_radius = 80
         else:
-            self.max_lifespan = random.uniform(0.4, 0.9)
-            self.size = random.randint(3, 8)
-            angle = random.uniform(0, 2 * math.pi)
-            speed = random.uniform(50, 150)
-            self.vx = math.cos(angle) * speed
-            self.vy = math.sin(angle) * speed
-            self.gravity = 180
+            self.max_lifespan = random.uniform(0.4, 0.9); self.size = random.randint(3, 8)
+            angle = random.uniform(0, 2 * math.pi); speed = random.uniform(50, 150)
+            self.vx = math.cos(angle) * speed; self.vy = math.sin(angle) * speed; self.gravity = 180
         self.lifespan = self.max_lifespan
         self.image = pygame.Surface([self.size * 2, self.size * 2], pygame.SRCALPHA)
         self.rect = self.image.get_rect(center=(self.x, self.y))
@@ -95,16 +88,12 @@ class Particle(pygame.sprite.Sprite):
         self.lifespan -= dt
         if self.lifespan <= 0: self.kill(); return
         if self.is_shockwave:
-            self.radius += 200 * dt
-            self.image = pygame.Surface([self.radius * 2, self.radius * 2], pygame.SRCALPHA)
-            pygame.draw.circle(self.image, self.color, (self.radius, self.radius), self.radius, 4)
-            self.rect = self.image.get_rect(center=(self.x, self.y))
+            self.radius += 200 * dt; self.image = pygame.Surface([self.radius * 2, self.radius * 2], pygame.SRCALPHA)
+            pygame.draw.circle(self.image, self.color, (self.radius, self.radius), self.radius, 4); self.rect = self.image.get_rect(center=(self.x, self.y))
         else:
-            self.x += self.vx * dt; self.vy += self.gravity * dt; self.y += self.vy * dt
-            self.rect.center = (self.x, self.y)
+            self.x += self.vx * dt; self.vy += self.gravity * dt; self.y += self.vy * dt; self.rect.center = (self.x, self.y)
             pygame.draw.circle(self.image, self.color, (self.size, self.size), self.size)
-        alpha = max(0, int(255 * (self.lifespan / self.max_lifespan)))
-        self.image.set_alpha(alpha)
+        alpha = max(0, int(255 * (self.lifespan / self.max_lifespan))); self.image.set_alpha(alpha)
 
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, x, y, target, damage):
@@ -118,8 +107,7 @@ class Projectile(pygame.sprite.Sprite):
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, path, health, speed, trap_damage, color, game):
-        super().__init__()
-        self.game=game; self.path=path; self.path_index=0; self.x,self.y=self.path[0]
+        super().__init__(); self.game=game; self.path=path; self.path_index=0; self.x,self.y=self.path[0]
         self.speed=speed; self.max_health=health; self.health=health; self.trap_damage=trap_damage
         self.is_slowed=False; self.slow_timer=0; self.color=color
         self.image=pygame.Surface([GRID_SIZE-4,GRID_SIZE-4],pygame.SRCALPHA); self.rect=self.image.get_rect(center=(self.x*GRID_SIZE+GRID_SIZE//2,self.y*GRID_SIZE+GRID_SIZE//2))
@@ -189,12 +177,12 @@ class SpikeTrap(Trap):
             if enemies_on_trap:
                 for e in enemies_on_trap: e.take_damage(self.damage)
                 if self.is_ultimate:
-                    game.create_explosion(self.rect.centerx, self.rect.centery, COLOR_SPIKE_TRAP_ARMED, is_shockwave=True)
+                    game.create_explosion(self.rect.centerx,self.rect.centery,COLOR_SPIKE_TRAP_ARMED,is_shockwave=True)
                     for e in game.enemies:
                         if math.hypot(e.rect.centerx-self.rect.centerx,e.rect.centery-self.rect.centery)<=80: e.take_damage(self.damage*2)
                 self.armed=False; self.timer=self.cooldown; self.draw()
     def upgrade(self): super().upgrade(); self.damage+=3; self.upgrade_cost+=10
-    def on_ultimate(self): self.damage += 10; self.draw()
+    def on_ultimate(self): self.damage+=10; self.draw()
 
 class SlowTrap(Trap):
     def __init__(self,x,y,research):
@@ -227,7 +215,7 @@ class TurretTrap(Trap):
                 if self.is_ultimate: game.projectiles.add(Projectile(self.rect.centerx,self.rect.centery,self.target,self.damage))
                 self.timer=self.cooldown
     def upgrade(self): super().upgrade(); self.range+=15; self.damage+=2; self.cooldown*=0.9; self.upgrade_cost+=25
-    def on_ultimate(self): self.cooldown *= 0.7; self.draw()
+    def on_ultimate(self): self.cooldown*=0.7; self.draw()
 
 class Button:
     def __init__(self,x,y,w,h,text,font,action=None): self.rect=pygame.Rect(x,y,w,h); self.text=text; self.font=font; self.action=action; self.is_hovered=False; self.is_enabled=True
@@ -242,8 +230,8 @@ class Button:
 class Game:
     def __init__(self):
         pygame.init(); self.screen=pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT)); pygame.display.set_caption("Dungeon Warfare")
-        self.clock=pygame.time.Clock(); self.running=True; self.font=pygame.font.SysFont(None,36); self.small_font=pygame.font.SysFont(None,28); self.large_font=pygame.font.SysFont(None,72)
-        self.research=Research(); self.game_state="main_menu"; self.setup_ui()
+        self.clock=pygame.time.Clock(); self.running=True; self.font=pygame.font.SysFont(None,36); self.small_font=pygame.font.SysFont(None,28)
+        self.large_font=pygame.font.SysFont(None,72); self.research=Research(); self.game_state="main_menu"; self.setup_ui()
     def setup_ui(self):
         self.new_game_button=Button(SCREEN_WIDTH//2-100,SCREEN_HEIGHT//2,200,50,"New Game",self.font,action=self.start_new_game)
         self.research_button=Button(SCREEN_WIDTH//2-100,SCREEN_HEIGHT//2+70,200,50,"Research Lab",self.font,action=lambda: self.set_state("research_lab"))
@@ -251,12 +239,14 @@ class Game:
         self.setup_research_buttons()
     def setup_research_buttons(self):
         self.research_buttons={}; y,upgrades=150,{'spike_damage':'Spike Dmg','spike_health':'Spike HP','slow_duration':'Slow Time','slow_health':'Slow HP','turret_damage':'Turret Dmg','turret_range':'Turret Rng'}
-        for i,(key,name) in enumerate(upgrades.items()): self.research_buttons[key]=Button(SCREEN_WIDTH//2+50,y+i*50,50,40,"+",self.font,action=lambda k=key: self.research.purchase_upgrade(k))
+        # FIX: Adjusted X-coordinate to prevent overlap
+        BUTTON_START_X = SCREEN_WIDTH // 2 + 100
+        for i,(key,name) in enumerate(upgrades.items()): self.research_buttons[key]=Button(BUTTON_START_X,y+i*50,50,40,"+",self.font,action=lambda k=key: self.research.purchase_upgrade(k))
     def reset_game(self):
         self.path_list=[]
         while not self.path_list: self.grid=self.create_grid(); self.path_list=self.find_path()
         self.path_set=set(self.path_list); self.enemies=pygame.sprite.Group(); self.traps=pygame.sprite.Group(); self.projectiles=pygame.sprite.Group(); self.particles=pygame.sprite.Group()
-        self.money=2000; self.lives=20; self.wave=0; self.wave_timer=10; self.wave_in_progress=False; self.enemies_killed=0; self.money_earned=2000
+        self.money=200; self.lives=20; self.wave=0; self.wave_timer=10; self.wave_in_progress=False; self.enemies_killed=0; self.money_earned=200
         self.combo_count=0; self.combo_timer=0; self.max_combo_time=2.0
         self.selected_trap_type=None; self.selected_trap_instance=None
     def start_new_game(self): self.reset_game(); self.set_state("playing")
@@ -418,15 +408,14 @@ class Game:
         if not self.wave_in_progress and self.wave<TOTAL_WAVES:
             prompt=self.small_font.render("SPACE to start early for +$25",True,COLOR_TEXT); self.screen.blit(prompt,(180,SCREEN_HEIGHT-50))
         if self.combo_count > 2:
-            combo_font = pygame.font.SysFont(None, 40 + self.combo_count)
-            combo_surf = combo_font.render(f"{self.combo_count}x COMBO!", True, COLOR_COMBO)
-            self.screen.blit(combo_surf, combo_surf.get_rect(center=(SCREEN_WIDTH//2, 50)))
+            combo_font=pygame.font.SysFont(None,40+self.combo_count); combo_surf=combo_font.render(f"{self.combo_count}x COMBO!",True,COLOR_COMBO)
+            self.screen.blit(combo_surf,combo_surf.get_rect(center=(SCREEN_WIDTH//2,50)))
         self.screen.blit(self.small_font.render("1:Spike(50) 2:Slow(75) 3:Turret(100)",True,COLOR_TEXT),(450,SCREEN_HEIGHT-90))
         self.screen.blit(self.small_font.render("Click trap, 'U' to upgrade.",True,COLOR_TEXT),(450,SCREEN_HEIGHT-50))
         if self.selected_trap_instance:
             trap=self.selected_trap_instance
-            if trap.is_ultimate: cost_text = "ULTIMATE!"
-            else: cost_text = f"Upg: {trap.upgrade_cost}|HP: {int(trap.health)}/{int(trap.max_health)}"
+            if trap.is_ultimate: cost_text="ULTIMATE!"
+            else: cost_text=f"Upg: {trap.upgrade_cost}|HP: {int(trap.health)}/{int(trap.max_health)}"
             if isinstance(trap,SpikeTrap): info=f"Spike L{trap.level}|Dmg:{trap.damage}"
             elif isinstance(trap,SlowTrap): info=f"Slow L{trap.level}|Dur:{trap.slow_duration:.1f}s"
             elif isinstance(trap,TurretTrap): info=f"Turret L{trap.level}|Dmg:{trap.damage}"
