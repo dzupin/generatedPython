@@ -28,7 +28,9 @@ COLOR_SLOW_TRAP_ACTIVE = (150, 150, 255)
 COLOR_TURRET_BASE = (80, 80, 90)
 COLOR_TURRET_CANNON = (140, 140, 150)
 COLOR_PROJECTILE = (255, 200, 0)
-COLOR_RANGE_INDICATOR = (255, 255, 255, 50)  # Transparent white
+COLOR_RANGE_INDICATOR = (255, 255, 255, 50)
+COLOR_HEALTH_BAR_BG = (180, 0, 0)
+COLOR_HEALTH_BAR_FG = (0, 180, 0)
 COLOR_GAME_OVER_BG = (100, 0, 0)
 COLOR_WIN_BG = (0, 100, 0)
 COLOR_BUTTON = (0, 80, 150)
@@ -47,28 +49,20 @@ class Projectile(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=(x, y))
         self.target = target
         self.damage = damage
-        self.speed = 300  # Pixels per second
+        self.speed = 300
 
     def update(self, dt):
-        """ Move the projectile towards its target """
         if not self.target.alive():
             self.kill()
             return
-
         target_pos = self.target.rect.center
-        current_pos = self.rect.center
-
-        dx = target_pos[0] - current_pos[0]
-        dy = target_pos[1] - current_pos[1]
+        dx = target_pos[0] - self.rect.centerx
+        dy = target_pos[1] - self.rect.centery
         dist = math.hypot(dx, dy)
-
         if dist < 5:
-            # Hit target
             self.target.take_damage(self.damage)
             self.kill()
             return
-
-        # Move towards target
         self.rect.x += (dx / dist) * self.speed * dt
         self.rect.y += (dy / dist) * self.speed * dt
 
@@ -76,8 +70,9 @@ class Projectile(pygame.sprite.Sprite):
 class Enemy(pygame.sprite.Sprite):
     """ A class to represent the enemies """
 
-    def __init__(self, path, health):
+    def __init__(self, path, health, game):
         super().__init__()
+        self.game = game
         self.path = path
         self.path_index = 0
         self.x, self.y = self.path[0]
@@ -85,14 +80,14 @@ class Enemy(pygame.sprite.Sprite):
         self.draw_enemy()
         self.rect = self.image.get_rect(
             center=(self.x * GRID_SIZE + GRID_SIZE // 2, self.y * GRID_SIZE + GRID_SIZE // 2))
-        self.speed = 2
+        self.speed = 2.5
         self.max_health = health
         self.health = health
         self.is_slowed = False
         self.slow_timer = 0
+        self.trap_damage = 5  # Damage dealt to traps on contact
 
     def draw_enemy(self):
-        """ Procedurally draws the enemy """
         self.image.fill(COLOR_ENEMY)
         pygame.draw.rect(self.image, (255, 100, 100), self.image.get_rect(), 2)
         eye_surface = pygame.Surface((4, 4))
@@ -101,7 +96,6 @@ class Enemy(pygame.sprite.Sprite):
         self.image.blit(eye_surface, (self.image.get_width() - 9, 5))
 
     def update(self, dt):
-        """ Updates the enemy's position along the path """
         if self.path_index < len(self.path) - 1:
             target_x, target_y = self.path[self.path_index + 1]
             target_pixel_x = target_x * GRID_SIZE + GRID_SIZE // 2
@@ -118,24 +112,26 @@ class Enemy(pygame.sprite.Sprite):
                 if self.slow_timer <= 0:
                     self.is_slowed = False
 
-            if dist > current_speed:
-                self.rect.centerx += (dx / dist) * current_speed * GRID_SIZE * dt
-                self.rect.centery += (dy / dist) * current_speed * GRID_SIZE * dt
+            move_dist = current_speed * GRID_SIZE * dt
+            if dist > move_dist:
+                self.rect.centerx += (dx / dist) * move_dist
+                self.rect.centery += (dy / dist) * move_dist
             else:
                 self.rect.centerx = target_pixel_x
                 self.rect.centery = target_pixel_y
                 self.path_index += 1
+                # Damage trap on arrival
+                trap = self.game.get_trap_at(target_x, target_y)
+                if trap:
+                    trap.take_damage(self.trap_damage)
 
     def take_damage(self, amount):
-        """ Reduces enemy health """
         self.health -= amount
         if self.health <= 0:
+            self.game.register_kill()
             self.kill()
-            return True
-        return False
 
     def slow(self, duration):
-        """ Applies a slow effect to the enemy """
         self.is_slowed = True
         self.slow_timer = duration
 
@@ -143,7 +139,7 @@ class Enemy(pygame.sprite.Sprite):
 class Trap(pygame.sprite.Sprite):
     """ A base class for traps """
 
-    def __init__(self, x, y, cost, upgrade_cost):
+    def __init__(self, x, y, cost, upgrade_cost, max_health):
         super().__init__()
         self.x = x
         self.y = y
@@ -152,25 +148,45 @@ class Trap(pygame.sprite.Sprite):
         self.level = 1
         self.image = pygame.Surface([GRID_SIZE, GRID_SIZE], pygame.SRCALPHA)
         self.rect = self.image.get_rect(topleft=(x * GRID_SIZE, y * GRID_SIZE))
+        self.max_health = max_health
+        self.health = max_health
+
+    def take_damage(self, amount):
+        self.health -= amount
+        if self.health <= 0:
+            self.kill()
 
     def upgrade(self):
-        """ Upgrades the trap """
         self.level += 1
+        self.max_health += 25 * self.level
+        self.health = self.max_health
+
+    def draw_health_bar(self, surface):
+        if self.health < self.max_health:
+            bar_width = GRID_SIZE - 4
+            bar_height = 5
+            health_pct = self.health / self.max_health
+
+            bg_rect = pygame.Rect(self.rect.left + 2, self.rect.top - bar_height - 2, bar_width, bar_height)
+            fg_rect = pygame.Rect(self.rect.left + 2, self.rect.top - bar_height - 2, bar_width * health_pct,
+                                  bar_height)
+
+            pygame.draw.rect(surface, COLOR_HEALTH_BAR_BG, bg_rect)
+            pygame.draw.rect(surface, COLOR_HEALTH_BAR_FG, fg_rect)
 
 
 class SpikeTrap(Trap):
     """ A trap that periodically damages enemies """
 
     def __init__(self, x, y):
-        super().__init__(x, y, 50, 30)
+        super().__init__(x, y, 50, 30, 75)  # Cost, Upg Cost, Health
         self.damage = 5
-        self.cooldown = 2
+        self.cooldown = 2.0
         self.timer = 0
         self.armed = True
         self.draw()
 
     def draw(self):
-        """ Procedurally draws the spike trap """
         color = COLOR_SPIKE_TRAP_ARMED if self.armed else COLOR_SPIKE_TRAP
         self.image.fill(COLOR_PATH)
         pygame.draw.rect(self.image, color, (5, 5, GRID_SIZE - 10, GRID_SIZE - 10))
@@ -183,23 +199,19 @@ class SpikeTrap(Trap):
                     spike_center
                 ])
 
-    def update(self, dt, enemies, projectiles):
-        """ Updates the trap's state and damages enemies """
-        killed_enemy = False
+    def update(self, dt, game):
         self.timer -= dt
         if not self.armed and self.timer <= 0:
             self.armed = True
             self.draw()
         if self.armed and self.timer <= 0:
-            enemies_on_trap = [e for e in enemies if self.rect.colliderect(e.rect)]
+            enemies_on_trap = [e for e in game.enemies if self.rect.colliderect(e.rect)]
             if enemies_on_trap:
                 for enemy in enemies_on_trap:
-                    if enemy.take_damage(self.damage):
-                        killed_enemy = True
+                    enemy.take_damage(self.damage)
                 self.armed = False
                 self.timer = self.cooldown
                 self.draw()
-        return killed_enemy
 
     def upgrade(self):
         super().upgrade()
@@ -211,22 +223,19 @@ class SlowTrap(Trap):
     """ A trap that slows enemies """
 
     def __init__(self, x, y):
-        super().__init__(x, y, 75, 40)
+        super().__init__(x, y, 75, 40, 100)  # Cost, Upg Cost, Health
         self.slow_duration = 3
         self.draw()
 
     def draw(self):
-        """ Procedurally draws the slow trap """
         self.image.fill(COLOR_PATH)
         pygame.draw.circle(self.image, COLOR_SLOW_TRAP, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 2 - 5)
         pygame.draw.circle(self.image, COLOR_SLOW_TRAP_ACTIVE, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 4)
 
-    def update(self, dt, enemies, projectiles):
-        """ Applies slow effect to enemies on the trap """
-        for enemy in enemies:
+    def update(self, dt, game):
+        for enemy in game.enemies:
             if self.rect.colliderect(enemy.rect):
                 enemy.slow(self.slow_duration)
-        return False
 
     def upgrade(self):
         super().upgrade()
@@ -238,69 +247,54 @@ class TurretTrap(Trap):
     """ A trap that shoots projectiles at enemies """
 
     def __init__(self, x, y):
-        super().__init__(x, y, 100, 50)
-        self.range = 100  # pixels
+        super().__init__(x, y, 100, 50, 50)  # Cost, Upg Cost, Health
+        self.range = 100
         self.damage = 3
-        self.cooldown = 1.0  # seconds
+        self.cooldown = 1.0
         self.timer = 0
         self.angle = 0
         self.target = None
         self.draw()
 
     def draw(self):
-        """ Procedurally draws the turret """
-        self.image.fill((0, 0, 0, 0))  # Clear with transparency
-        # Base
+        self.image.fill((0, 0, 0, 0))
         pygame.draw.circle(self.image, COLOR_TURRET_BASE, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 2 - 4)
         pygame.draw.circle(self.image, COLOR_GRID, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 2 - 4, 2)
-        # Cannon
-        cannon_length = GRID_SIZE // 2
-        end_x = GRID_SIZE // 2 + cannon_length * math.cos(self.angle)
-        end_y = GRID_SIZE // 2 + cannon_length * math.sin(self.angle)
+        end_x = GRID_SIZE // 2 + (GRID_SIZE // 2) * math.cos(self.angle)
+        end_y = GRID_SIZE // 2 + (GRID_SIZE // 2) * math.sin(self.angle)
         pygame.draw.line(self.image, COLOR_TURRET_CANNON, (GRID_SIZE // 2, GRID_SIZE // 2), (end_x, end_y), 6)
 
     def find_target(self, enemies):
-        """ Finds the best enemy to shoot at """
         self.target = None
-        in_range_enemies = []
-        for enemy in enemies:
-            dist = math.hypot(self.rect.centerx - enemy.rect.centerx, self.rect.centery - enemy.rect.centery)
-            if dist <= self.range:
-                in_range_enemies.append(enemy)
-
-        # Target enemy closest to the end of the path
+        in_range_enemies = [e for e in enemies if math.hypot(self.rect.centerx - e.rect.centerx,
+                                                             self.rect.centery - e.rect.centery) <= self.range]
         if in_range_enemies:
             self.target = max(in_range_enemies, key=lambda e: e.path_index)
 
-    def update(self, dt, enemies, projectiles):
-        """ Aims, and shoots at enemies """
+    def update(self, dt, game):
         self.timer -= dt
-        self.find_target(enemies)
-
+        if not self.target or not self.target.alive():
+            self.find_target(game.enemies)
         if self.target:
             dx = self.target.rect.centerx - self.rect.centerx
             dy = self.target.rect.centery - self.rect.centery
             self.angle = math.atan2(dy, dx)
             self.draw()
-
             if self.timer <= 0:
                 proj = Projectile(self.rect.centerx, self.rect.centery, self.target, self.damage)
-                projectiles.add(proj)
+                game.projectiles.add(proj)
                 self.timer = self.cooldown
-        return False  # Turret killing is handled by the projectile
 
     def upgrade(self):
         super().upgrade()
         self.range += 15
         self.damage += 2
-        self.cooldown *= 0.9  # Fire faster
+        self.cooldown *= 0.9
         self.upgrade_cost += 25
 
 
 # --- Button Class ---
 class Button:
-    """ A simple button class """
-
     def __init__(self, x, y, width, height, text, font):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
@@ -308,24 +302,18 @@ class Button:
         self.is_hovered = False
 
     def draw(self, screen):
-        """ Draws the button on the screen """
         color = COLOR_BUTTON_HOVER if self.is_hovered else COLOR_BUTTON
         pygame.draw.rect(screen, color, self.rect, border_radius=10)
         pygame.draw.rect(screen, COLOR_UI_BORDER, self.rect, 2, border_radius=10)
         text_surf = self.font.render(self.text, True, COLOR_TEXT)
-        text_rect = text_surf.get_rect(center=self.rect.center)
-        screen.blit(text_surf, text_rect)
+        screen.blit(text_surf, text_surf.get_rect(center=self.rect.center))
 
     def check_hover(self, mouse_pos):
-        """ Checks if the mouse is hovering over the button """
         self.is_hovered = self.rect.collidepoint(mouse_pos)
 
 
 # --- Game Class ---
-
 class Game:
-    """ The main game class """
-
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -340,32 +328,31 @@ class Game:
         self.reset_game()
 
     def reset_game(self):
-        """ Resets the game to its initial state """
         self.path_list = []
         while not self.path_list:
             self.grid = self.create_grid()
             self.path_list = self.find_path()
         self.path_set = set(self.path_list)
-
         self.enemies = pygame.sprite.Group()
         self.traps = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
-
-        self.money = 2000
+        self.money = 20000
         self.lives = 20
         self.wave = 0
         self.wave_timer = 10
         self.wave_in_progress = False
-
         self.enemies_killed = 0
-        self.money_earned = 2000
-
+        self.money_earned = 20000
         self.selected_trap_type = None
         self.selected_trap_instance = None
         self.game_state = "playing"
 
+    def register_kill(self):
+        self.enemies_killed += 1
+        self.money += 5
+        self.money_earned += 5
+
     def create_grid(self):
-        """ Creates the dungeon grid """
         grid = [[1 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
@@ -376,7 +363,6 @@ class Game:
         return grid
 
     def find_path(self):
-        """ Finds a path for enemies using A* """
         start = (0, GRID_HEIGHT // 2)
         end = (GRID_WIDTH - 1, GRID_HEIGHT // 2)
         open_set = {start}
@@ -384,15 +370,18 @@ class Game:
         g_score = {(x, y): float('inf') for y in range(GRID_HEIGHT) for x in range(GRID_WIDTH)}
         g_score[start] = 0
         f_score = {(x, y): float('inf') for y in range(GRID_HEIGHT) for x in range(GRID_WIDTH)}
-        f_score[start] = self.heuristic(start, end)
+        f_score[start] = abs(start[0] - end[0]) + abs(start[1] - end[1])
 
         while open_set:
             current = min(open_set, key=lambda o: f_score.get(o, float('inf')))
             if current == end:
-                return self.reconstruct_path(came_from, current)
-
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.append(start)
+                return path[::-1]
             open_set.remove(current)
-
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
                 neighbor = (current[0] + dx, current[1] + dy)
                 if 0 <= neighbor[0] < GRID_WIDTH and 0 <= neighbor[1] < GRID_HEIGHT and self.grid[neighbor[1]][
@@ -401,20 +390,10 @@ class Game:
                     if tentative_g_score < g_score.get(neighbor, float('inf')):
                         came_from[neighbor] = current
                         g_score[neighbor] = tentative_g_score
-                        f_score[neighbor] = g_score[neighbor] + self.heuristic(neighbor, end)
+                        f_score[neighbor] = g_score[neighbor] + abs(neighbor[0] - end[0]) + abs(neighbor[1] - end[1])
                         if neighbor not in open_set:
                             open_set.add(neighbor)
         return []
-
-    def heuristic(self, a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-    def reconstruct_path(self, came_from, current):
-        total_path = [current]
-        while current in came_from.keys():
-            current = came_from[current]
-            total_path.append(current)
-        return total_path[::-1]
 
     def run(self):
         while self.running:
@@ -427,20 +406,16 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-
             if self.game_state == "playing":
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.handle_mouse_click(event.pos)
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_1:
-                        self.selected_trap_type = "spike"
-                        self.selected_trap_instance = None
+                        self.selected_trap_type, self.selected_trap_instance = "spike", None
                     elif event.key == pygame.K_2:
-                        self.selected_trap_type = "slow"
-                        self.selected_trap_instance = None
+                        self.selected_trap_type, self.selected_trap_instance = "slow", None
                     elif event.key == pygame.K_3:
-                        self.selected_trap_type = "turret"
-                        self.selected_trap_instance = None
+                        self.selected_trap_type, self.selected_trap_instance = "turret", None
                     elif event.key == pygame.K_u and self.selected_trap_instance:
                         if self.money >= self.selected_trap_instance.upgrade_cost:
                             self.money -= self.selected_trap_instance.upgrade_cost
@@ -457,64 +432,42 @@ class Game:
             if self.selected_trap_type and not trap_at_pos:
                 self.place_trap(grid_x, grid_y)
             elif trap_at_pos:
-                self.selected_trap_instance = trap_at_pos
-                self.selected_trap_type = None
+                self.selected_trap_instance, self.selected_trap_type = trap_at_pos, None
 
     def get_trap_at(self, x, y):
         for trap in self.traps:
-            if trap.x == x and trap.y == y:
-                return trap
+            if trap.x == x and trap.y == y: return trap
         return None
 
     def place_trap(self, x, y):
-        # Can place turrets on walls, others on path
-        can_place = (self.selected_trap_type == 'turret' and self.grid[y][x] == 0) or \
-                    (self.selected_trap_type != 'turret' and self.grid[y][x] == 1)
-
+        is_wall = self.grid[y][x] == 0
+        can_place = (self.selected_trap_type == 'turret' and is_wall) or \
+                    (self.selected_trap_type != 'turret' and not is_wall)
         if not can_place: return
 
         if self.selected_trap_type == "spike" and self.money >= 50:
-            self.traps.add(SpikeTrap(x, y))
+            self.traps.add(SpikeTrap(x, y));
             self.money -= 50
         elif self.selected_trap_type == "slow" and self.money >= 75:
-            self.traps.add(SlowTrap(x, y))
+            self.traps.add(SlowTrap(x, y));
             self.money -= 75
         elif self.selected_trap_type == "turret" and self.money >= 100:
-            self.traps.add(TurretTrap(x, y))
+            self.traps.add(TurretTrap(x, y));
             self.money -= 100
 
     def update(self, dt):
         if self.game_state == "playing":
             self.enemies.update(dt)
+            self.traps.update(dt, self)
             self.projectiles.update(dt)
-
-            # Update traps and check for kills
-            for trap in self.traps:
-                if trap.update(dt, self.enemies, self.projectiles):
-                    self.enemies_killed += 1
-                    self.money += 5
-                    self.money_earned += 5
-
-            # Check for kills from projectiles
-            for proj in list(self.projectiles):
-                if not proj.target.alive():
-                    self.enemies_killed += 1
-                    self.money += 5
-                    self.money_earned += 5
-
             for enemy in list(self.enemies):
                 if enemy.path_index >= len(self.path_list) - 1:
                     self.lives -= 1
                     enemy.kill()
-                    if self.lives <= 0:
-                        self.lives = 0
-                        self.game_state = "game_over"
-
+                    if self.lives <= 0: self.lives, self.game_state = 0, "game_over"
             if not self.wave_in_progress:
                 self.wave_timer -= dt
-                if self.wave_timer <= 0:
-                    self.start_wave()
-
+                if self.wave_timer <= 0: self.start_wave()
             if self.wave_in_progress and not self.enemies:
                 self.wave_in_progress = False
                 if self.wave >= TOTAL_WAVES:
@@ -529,7 +482,7 @@ class Game:
         self.wave_in_progress = True
         enemy_health = 10 + (self.wave - 1) * 7
         for i in range(self.wave * 5):
-            enemy = Enemy(self.path_list, enemy_health)
+            enemy = Enemy(self.path_list, enemy_health, self)
             enemy.rect.centerx -= i * 40
             self.enemies.add(enemy)
 
@@ -540,6 +493,7 @@ class Game:
             if isinstance(self.selected_trap_instance, TurretTrap):
                 self.draw_range_indicator(self.selected_trap_instance)
             self.traps.draw(self.screen)
+            for trap in self.traps: trap.draw_health_bar(self.screen)
             self.projectiles.draw(self.screen)
             self.enemies.draw(self.screen)
             self.draw_ui()
@@ -550,7 +504,6 @@ class Game:
         pygame.display.flip()
 
     def draw_range_indicator(self, turret):
-        """ Draws a transparent circle showing the turret's range """
         s = pygame.Surface((turret.range * 2, turret.range * 2), pygame.SRCALPHA)
         pygame.draw.circle(s, COLOR_RANGE_INDICATOR, (turret.range, turret.range), turret.range)
         self.screen.blit(s, (turret.rect.centerx - turret.range, turret.rect.centery - turret.range))
@@ -569,66 +522,55 @@ class Game:
 
     def draw_ui(self):
         ui_rect = pygame.Rect(0, SCREEN_HEIGHT - INFO_PANEL_HEIGHT, SCREEN_WIDTH, INFO_PANEL_HEIGHT)
-        pygame.draw.rect(self.screen, COLOR_UI_BG, ui_rect)
+        pygame.draw.rect(self.screen, COLOR_UI_BG, ui_rect);
         pygame.draw.rect(self.screen, COLOR_UI_BORDER, ui_rect, 2)
-
-        money_text = self.font.render(f"Money: {self.money}", True, COLOR_TEXT)
-        self.screen.blit(money_text, (10, SCREEN_HEIGHT - 90))
-        lives_text = self.font.render(f"Lives: {self.lives}", True, COLOR_TEXT)
-        self.screen.blit(lives_text, (10, SCREEN_HEIGHT - 50))
-        wave_text = self.font.render(f"Wave: {self.wave}/{TOTAL_WAVES}", True, COLOR_TEXT)
-        self.screen.blit(wave_text, (200, SCREEN_HEIGHT - 90))
-
+        self.screen.blit(self.font.render(f"Money: {self.money}", True, COLOR_TEXT), (10, SCREEN_HEIGHT - 90))
+        self.screen.blit(self.font.render(f"Lives: {self.lives}", True, COLOR_TEXT), (10, SCREEN_HEIGHT - 50))
+        self.screen.blit(self.font.render(f"Wave: {self.wave}/{TOTAL_WAVES}", True, COLOR_TEXT),
+                         (200, SCREEN_HEIGHT - 90))
         if not self.wave_in_progress and self.wave < TOTAL_WAVES:
-            next_wave_text = self.font.render(f"Next Wave: {int(self.wave_timer) + 1}s", True, COLOR_TEXT)
-            self.screen.blit(next_wave_text, (200, SCREEN_HEIGHT - 50))
-
-        trap_info_text = self.small_font.render("1: Spike (50)  2: Slow (75)  3: Turret (100)", True, COLOR_TEXT)
-        self.screen.blit(trap_info_text, (380, SCREEN_HEIGHT - 90))
-        trap_info_text_2 = self.small_font.render("Click trap, then 'U' to upgrade. Turrets go on walls.", True,
-                                                  COLOR_TEXT)
-        self.screen.blit(trap_info_text_2, (380, SCREEN_HEIGHT - 50))
-
+            self.screen.blit(self.font.render(f"Next Wave: {int(self.wave_timer) + 1}s", True, COLOR_TEXT),
+                             (200, SCREEN_HEIGHT - 50))
+        self.screen.blit(self.small_font.render("1: Spike (50) 2: Slow (75) 3: Turret (100)", True, COLOR_TEXT),
+                         (380, SCREEN_HEIGHT - 90))
+        self.screen.blit(
+            self.small_font.render("Click trap, then 'U' to upgrade. Turrets go on walls.", True, COLOR_TEXT),
+            (380, SCREEN_HEIGHT - 50))
         if self.selected_trap_instance:
             trap = self.selected_trap_instance
-            cost_text = f"Upgrade: {trap.upgrade_cost}"
+            cost_text = f"Upgrade: {trap.upgrade_cost} | Health: {trap.health}/{trap.max_health}"
             if isinstance(trap, SpikeTrap):
                 info = f"Spike | Lvl {trap.level} | Dmg: {trap.damage}"
             elif isinstance(trap, SlowTrap):
                 info = f"Slow | Lvl {trap.level} | Dur: {trap.slow_duration:.1f}s"
             elif isinstance(trap, TurretTrap):
                 info = f"Turret | Lvl {trap.level} | Dmg: {trap.damage}"
-
-            sel_text_1 = self.font.render(info, True, COLOR_TEXT)
-            self.screen.blit(sel_text_1, (740, SCREEN_HEIGHT - 90))
-            sel_text_2 = self.font.render(cost_text, True, COLOR_TEXT)
-            self.screen.blit(sel_text_2, (740, SCREEN_HEIGHT - 50))
+            self.screen.blit(self.font.render(info, True, COLOR_TEXT), (740, SCREEN_HEIGHT - 90))
+            self.screen.blit(self.small_font.render(cost_text, True, COLOR_TEXT), (740, SCREEN_HEIGHT - 50))
 
     def draw_end_screen(self, title_text, bg_color):
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((*bg_color, 230))
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA);
+        overlay.fill((*bg_color, 230));
         self.screen.blit(overlay, (0, 0))
-
         title_surf = self.large_font.render(title_text, True, COLOR_TEXT)
-        title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4))
-        self.screen.blit(title_surf, title_rect)
-
-        stats_box_rect = pygame.Rect(0, 0, 400, 200)
+        self.screen.blit(title_surf, title_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
+        stats_box_rect = pygame.Rect(0, 0, 400, 200);
         stats_box_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20)
-        pygame.draw.rect(self.screen, COLOR_UI_BG, stats_box_rect, border_radius=15)
+        pygame.draw.rect(self.screen, COLOR_UI_BG, stats_box_rect, border_radius=15);
         pygame.draw.rect(self.screen, COLOR_UI_BORDER, stats_box_rect, 3, border_radius=15)
-
         stats_y_start = stats_box_rect.centery - 45
         waves_survived = self.wave - 1 if self.game_state == "game_over" and self.wave_in_progress else self.wave
         if self.game_state == "victory": waves_survived = TOTAL_WAVES
-        waves_text = self.font.render(f"Waves Survived: {waves_survived} / {TOTAL_WAVES}", True, COLOR_TEXT)
-        self.screen.blit(waves_text, waves_text.get_rect(center=(SCREEN_WIDTH // 2, stats_y_start)))
-        killed_text = self.font.render(f"Enemies Killed: {self.enemies_killed}", True, COLOR_TEXT)
-        self.screen.blit(killed_text, killed_text.get_rect(center=(SCREEN_WIDTH // 2, stats_y_start + 45)))
-        money_text = self.font.render(f"Total Money Earned: {self.money_earned}", True, COLOR_TEXT)
-        self.screen.blit(money_text, money_text.get_rect(center=(SCREEN_WIDTH // 2, stats_y_start + 90)))
-
-        self.new_game_button.rect.center = (SCREEN_WIDTH // 2, stats_box_rect.bottom + 60)
+        self.screen.blit(self.font.render(f"Waves Survived: {waves_survived} / {TOTAL_WAVES}", True, COLOR_TEXT),
+                         self.font.render(f"Waves Survived: {waves_survived} / {TOTAL_WAVES}", True,
+                                          COLOR_TEXT).get_rect(center=(SCREEN_WIDTH // 2, stats_y_start)))
+        self.screen.blit(self.font.render(f"Enemies Killed: {self.enemies_killed}", True, COLOR_TEXT),
+                         self.font.render(f"Enemies Killed: {self.enemies_killed}", True, COLOR_TEXT).get_rect(
+                             center=(SCREEN_WIDTH // 2, stats_y_start + 45)))
+        self.screen.blit(self.font.render(f"Total Money Earned: {self.money_earned}", True, COLOR_TEXT),
+                         self.font.render(f"Total Money Earned: {self.money_earned}", True, COLOR_TEXT).get_rect(
+                             center=(SCREEN_WIDTH // 2, stats_y_start + 90)))
+        self.new_game_button.rect.center = (SCREEN_WIDTH // 2, stats_box_rect.bottom + 60);
         self.new_game_button.draw(self.screen)
 
 
