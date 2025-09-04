@@ -42,6 +42,6 @@ Implement Deeper Gameplay Mechanics:  After a game ends (win or lose), award the
 
 PROMPT:
 Create visually appealing Dungeon Warfare like tower defense game in Python using Pygame library. Game mechanics should focus on trapping and defending against waves of enemies in a dungeon setting, requiring careful trap placement and upgrades.  Don't use any external images to achieve it. Python code will generate all necessary graphic elements used by game.
-Try to make your design expandable to make game easy to grow and enhance in the future.
-NOTE: free Google Studio now only offer 8K output so I need to use continue functionality to get full code. PROMPT to be applied:
+Try to make your design expandable to make game easy to grow and enhance in the future. In your output make sure to  provide python code with fully implemented and functional dungeon defence game.
+NOTE: free Google Studio for Nano Banana now only offer 8K output so I need to use continue functionality to get full code. PROMPT to be applied:
 continue to write rest of the from previous prompt, that I can attach to code from previous prompt
