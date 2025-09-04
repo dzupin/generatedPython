@@ -1,6 +1,8 @@
 import pygame
 import random
 import math
+import json
+import os
 
 # --- Constants ---
 SCREEN_WIDTH = 1024
@@ -11,6 +13,7 @@ GRID_HEIGHT = (SCREEN_HEIGHT - 100) // GRID_SIZE
 INFO_PANEL_HEIGHT = 100
 FPS = 60
 TOTAL_WAVES = 10
+STATS_FILE = 'dungeon_stats.json'
 
 # Colors
 COLOR_WALL = (50, 50, 50)
@@ -35,380 +38,397 @@ COLOR_GAME_OVER_BG = (100, 0, 0)
 COLOR_WIN_BG = (0, 100, 0)
 COLOR_BUTTON = (0, 80, 150)
 COLOR_BUTTON_HOVER = (50, 130, 200)
+COLOR_DISABLED_BUTTON = (80, 80, 80)
+
+
+# --- Research and Stats Management ---
+class Research:
+    def __init__(self):
+        self.data = {
+            'research_points': 0,
+            'stats': {
+                'games_played': 0,
+                'victories': 0,
+                'total_kills': 0
+            },
+            'upgrades': {
+                'spike_damage': 0, 'spike_health': 0,
+                'slow_duration': 0, 'slow_health': 0,
+                'turret_damage': 0, 'turret_range': 0
+            }
+        }
+        self.load()
+
+    def load(self):
+        if os.path.exists(STATS_FILE):
+            try:
+                with open(STATS_FILE, 'r') as f:
+                    self.data = json.load(f)
+            except json.JSONDecodeError:
+                self.save()  # If file is corrupted, create a new one
+        else:
+            self.save()
+
+    def save(self):
+        with open(STATS_FILE, 'w') as f:
+            json.dump(self.data, f, indent=4)
+
+    def get_upgrade_cost(self, upgrade_key):
+        level = self.data['upgrades'][upgrade_key]
+        return 5 + (level * 5)
+
+    def purchase_upgrade(self, upgrade_key):
+        cost = self.get_upgrade_cost(upgrade_key)
+        if self.data['research_points'] >= cost:
+            self.data['research_points'] -= cost
+            self.data['upgrades'][upgrade_key] += 1
+            self.save()
+            return True
+        return False
 
 
 # --- Game Object Classes ---
-
 class Projectile(pygame.sprite.Sprite):
-    """ A class for projectiles fired by turrets """
-
     def __init__(self, x, y, target, damage):
         super().__init__()
         self.image = pygame.Surface((8, 8), pygame.SRCALPHA)
         pygame.draw.circle(self.image, COLOR_PROJECTILE, (4, 4), 4)
         self.rect = self.image.get_rect(center=(x, y))
-        self.target = target
-        self.damage = damage
+        self.target = target;
+        self.damage = damage;
         self.speed = 300
 
     def update(self, dt):
-        if not self.target.alive():
-            self.kill()
-            return
+        if not self.target.alive(): self.kill(); return
         target_pos = self.target.rect.center
-        dx = target_pos[0] - self.rect.centerx
-        dy = target_pos[1] - self.rect.centery
+        dx, dy = target_pos[0] - self.rect.centerx, target_pos[1] - self.rect.centery
         dist = math.hypot(dx, dy)
-        if dist < 5:
-            self.target.take_damage(self.damage)
-            self.kill()
-            return
+        if dist < 5: self.target.take_damage(self.damage); self.kill(); return
         self.rect.x += (dx / dist) * self.speed * dt
         self.rect.y += (dy / dist) * self.speed * dt
 
 
 class Enemy(pygame.sprite.Sprite):
-    """ A class to represent the enemies """
-
     def __init__(self, path, health, game):
         super().__init__()
-        self.game = game
-        self.path = path
+        self.game = game;
+        self.path = path;
         self.path_index = 0
         self.x, self.y = self.path[0]
         self.image = pygame.Surface([GRID_SIZE // 2, GRID_SIZE // 2])
         self.draw_enemy()
         self.rect = self.image.get_rect(
             center=(self.x * GRID_SIZE + GRID_SIZE // 2, self.y * GRID_SIZE + GRID_SIZE // 2))
-        self.speed = 2.5
-        self.max_health = health
+        self.speed = 2.5;
+        self.max_health = health;
         self.health = health
-        self.is_slowed = False
-        self.slow_timer = 0
-        self.trap_damage = 5  # Damage dealt to traps on contact
+        self.is_slowed = False;
+        self.slow_timer = 0;
+        self.trap_damage = 5
 
     def draw_enemy(self):
-        self.image.fill(COLOR_ENEMY)
+        self.image.fill(COLOR_ENEMY);
         pygame.draw.rect(self.image, (255, 100, 100), self.image.get_rect(), 2)
-        eye_surface = pygame.Surface((4, 4))
-        eye_surface.fill((255, 255, 255))
-        self.image.blit(eye_surface, (5, 5))
-        self.image.blit(eye_surface, (self.image.get_width() - 9, 5))
+        eye = pygame.Surface((4, 4));
+        eye.fill((255, 255, 255))
+        self.image.blit(eye, (5, 5));
+        self.image.blit(eye, (self.image.get_width() - 9, 5))
 
     def update(self, dt):
         if self.path_index < len(self.path) - 1:
             target_x, target_y = self.path[self.path_index + 1]
-            target_pixel_x = target_x * GRID_SIZE + GRID_SIZE // 2
-            target_pixel_y = target_y * GRID_SIZE + GRID_SIZE // 2
-
-            dx = target_pixel_x - self.rect.centerx
-            dy = target_pixel_y - self.rect.centery
+            target_px, target_py = target_x * GRID_SIZE + GRID_SIZE // 2, target_y * GRID_SIZE + GRID_SIZE // 2
+            dx, dy = target_px - self.rect.centerx, target_py - self.rect.centery
             dist = math.hypot(dx, dy)
-
-            current_speed = self.speed
-            if self.is_slowed:
-                current_speed *= 0.5
-                self.slow_timer -= dt
-                if self.slow_timer <= 0:
-                    self.is_slowed = False
-
+            current_speed = self.speed * (0.5 if self.is_slowed else 1)
+            if self.is_slowed: self.slow_timer -= dt; self.is_slowed = self.slow_timer > 0
             move_dist = current_speed * GRID_SIZE * dt
             if dist > move_dist:
-                self.rect.centerx += (dx / dist) * move_dist
+                self.rect.centerx += (dx / dist) * move_dist;
                 self.rect.centery += (dy / dist) * move_dist
             else:
-                self.rect.centerx = target_pixel_x
-                self.rect.centery = target_pixel_y
+                self.rect.center = (target_px, target_py);
                 self.path_index += 1
-                # Damage trap on arrival
                 trap = self.game.get_trap_at(target_x, target_y)
-                if trap:
-                    trap.take_damage(self.trap_damage)
+                if trap: trap.take_damage(self.trap_damage)
 
     def take_damage(self, amount):
         self.health -= amount
-        if self.health <= 0:
-            self.game.register_kill()
-            self.kill()
+        if self.health <= 0: self.game.register_kill(); self.kill()
 
     def slow(self, duration):
-        self.is_slowed = True
-        self.slow_timer = duration
+        self.is_slowed = True; self.slow_timer = duration
 
 
 class Trap(pygame.sprite.Sprite):
-    """ A base class for traps """
-
-    def __init__(self, x, y, cost, upgrade_cost, max_health):
+    def __init__(self, x, y, cost, upgrade_cost, max_health, research):
         super().__init__()
-        self.x = x
-        self.y = y
-        self.cost = cost
-        self.upgrade_cost = upgrade_cost
-        self.level = 1
+        self.x, self.y = x, y;
+        self.cost, self.upgrade_cost = cost, upgrade_cost
+        self.level = 1;
+        self.research = research
         self.image = pygame.Surface([GRID_SIZE, GRID_SIZE], pygame.SRCALPHA)
         self.rect = self.image.get_rect(topleft=(x * GRID_SIZE, y * GRID_SIZE))
-        self.max_health = max_health
-        self.health = max_health
+        self.base_max_health = max_health;
+        self.max_health = self.base_max_health;
+        self.health = self.max_health
 
     def take_damage(self, amount):
-        self.health -= amount
-        if self.health <= 0:
-            self.kill()
+        self.health -= amount; self.health = max(0, self.health); self.check_death()
+
+    def check_death(self):
+        if self.health <= 0: self.kill()
 
     def upgrade(self):
-        self.level += 1
-        self.max_health += 25 * self.level
-        self.health = self.max_health
+        self.level += 1; self.max_health += 25 * self.level; self.health = self.max_health
 
     def draw_health_bar(self, surface):
         if self.health < self.max_health:
-            bar_width = GRID_SIZE - 4
-            bar_height = 5
-            health_pct = self.health / self.max_health
-
-            bg_rect = pygame.Rect(self.rect.left + 2, self.rect.top - bar_height - 2, bar_width, bar_height)
-            fg_rect = pygame.Rect(self.rect.left + 2, self.rect.top - bar_height - 2, bar_width * health_pct,
-                                  bar_height)
-
-            pygame.draw.rect(surface, COLOR_HEALTH_BAR_BG, bg_rect)
-            pygame.draw.rect(surface, COLOR_HEALTH_BAR_FG, fg_rect)
+            bar = pygame.Rect(self.rect.left + 2, self.rect.top - 7, GRID_SIZE - 4, 5)
+            pygame.draw.rect(surface, COLOR_HEALTH_BAR_BG, bar)
+            bar.width = (GRID_SIZE - 4) * (self.health / self.max_health)
+            pygame.draw.rect(surface, COLOR_HEALTH_BAR_FG, bar)
 
 
 class SpikeTrap(Trap):
-    """ A trap that periodically damages enemies """
-
-    def __init__(self, x, y):
-        super().__init__(x, y, 50, 30, 75)  # Cost, Upg Cost, Health
-        self.damage = 5
-        self.cooldown = 2.0
-        self.timer = 0
-        self.armed = True
+    def __init__(self, x, y, research):
+        super().__init__(x, y, 50, 30, 75, research)
+        self.damage_bonus = self.research.data['upgrades']['spike_damage']
+        self.health_bonus = 1 + (self.research.data['upgrades']['spike_health'] * 0.1)
+        self.max_health = int(self.base_max_health * self.health_bonus);
+        self.health = self.max_health
+        self.damage = 5 + self.damage_bonus;
+        self.cooldown = 2.0;
+        self.timer = 0;
+        self.armed = True;
         self.draw()
 
     def draw(self):
-        color = COLOR_SPIKE_TRAP_ARMED if self.armed else COLOR_SPIKE_TRAP
+        c = COLOR_SPIKE_TRAP_ARMED if self.armed else COLOR_SPIKE_TRAP;
         self.image.fill(COLOR_PATH)
-        pygame.draw.rect(self.image, color, (5, 5, GRID_SIZE - 10, GRID_SIZE - 10))
+        pygame.draw.rect(self.image, c, (5, 5, GRID_SIZE - 10, GRID_SIZE - 10))
         for i in range(3):
-            for j in range(3):
-                spike_center = (8 + i * 8, 8 + j * 8)
-                pygame.draw.polygon(self.image, (150, 150, 150), [
-                    (spike_center[0] - 3, spike_center[1] + 3),
-                    (spike_center[0] + 3, spike_center[1] + 3),
-                    spike_center
-                ])
+            for j in range(3): pygame.draw.polygon(self.image, (150, 150, 150),
+                                                   [(8 + i * 8 - 3, 8 + j * 8 + 3), (8 + i * 8 + 3, 8 + j * 8 + 3),
+                                                    (8 + i * 8, 8 + j * 8)])
 
     def update(self, dt, game):
         self.timer -= dt
-        if not self.armed and self.timer <= 0:
-            self.armed = True
-            self.draw()
+        if not self.armed and self.timer <= 0: self.armed = True; self.draw()
         if self.armed and self.timer <= 0:
             enemies_on_trap = [e for e in game.enemies if self.rect.colliderect(e.rect)]
             if enemies_on_trap:
-                for enemy in enemies_on_trap:
-                    enemy.take_damage(self.damage)
-                self.armed = False
-                self.timer = self.cooldown
+                for e in enemies_on_trap: e.take_damage(self.damage)
+                self.armed = False;
+                self.timer = self.cooldown;
                 self.draw()
 
     def upgrade(self):
-        super().upgrade()
-        self.damage += 3
-        self.upgrade_cost += 10
+        super().upgrade(); self.damage += 3; self.upgrade_cost += 10
 
 
 class SlowTrap(Trap):
-    """ A trap that slows enemies """
-
-    def __init__(self, x, y):
-        super().__init__(x, y, 75, 40, 100)  # Cost, Upg Cost, Health
-        self.slow_duration = 3
+    def __init__(self, x, y, research):
+        super().__init__(x, y, 75, 40, 100, research)
+        self.duration_bonus = self.research.data['upgrades']['slow_duration'] * 0.25
+        self.health_bonus = 1 + (self.research.data['upgrades']['slow_health'] * 0.1)
+        self.max_health = int(self.base_max_health * self.health_bonus);
+        self.health = self.max_health
+        self.slow_duration = 3 + self.duration_bonus;
         self.draw()
 
     def draw(self):
         self.image.fill(COLOR_PATH)
-        pygame.draw.circle(self.image, COLOR_SLOW_TRAP, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 2 - 5)
-        pygame.draw.circle(self.image, COLOR_SLOW_TRAP_ACTIVE, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 4)
+        pygame.draw.circle(self.image, COLOR_SLOW_TRAP, (16, 16), 11);
+        pygame.draw.circle(self.image, COLOR_SLOW_TRAP_ACTIVE, (16, 16), 8)
 
     def update(self, dt, game):
-        for enemy in game.enemies:
-            if self.rect.colliderect(enemy.rect):
-                enemy.slow(self.slow_duration)
+        for e in game.enemies:
+            if self.rect.colliderect(e.rect): e.slow(self.slow_duration)
 
     def upgrade(self):
-        super().upgrade()
-        self.slow_duration += 1.5
-        self.upgrade_cost += 20
+        super().upgrade(); self.slow_duration += 1.5; self.upgrade_cost += 20
 
 
 class TurretTrap(Trap):
-    """ A trap that shoots projectiles at enemies """
-
-    def __init__(self, x, y):
-        super().__init__(x, y, 100, 50, 50)  # Cost, Upg Cost, Health
-        self.range = 100
-        self.damage = 3
-        self.cooldown = 1.0
-        self.timer = 0
-        self.angle = 0
-        self.target = None
+    def __init__(self, x, y, research):
+        super().__init__(x, y, 100, 50, 50, research)
+        self.damage_bonus = self.research.data['upgrades']['turret_damage']
+        self.range_bonus = self.research.data['upgrades']['turret_range'] * 10
+        self.damage = 3 + self.damage_bonus;
+        self.range = 100 + self.range_bonus
+        self.cooldown = 1.0;
+        self.timer = 0;
+        self.angle = 0;
+        self.target = None;
         self.draw()
 
     def draw(self):
-        self.image.fill((0, 0, 0, 0))
-        pygame.draw.circle(self.image, COLOR_TURRET_BASE, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 2 - 4)
-        pygame.draw.circle(self.image, COLOR_GRID, (GRID_SIZE // 2, GRID_SIZE // 2), GRID_SIZE // 2 - 4, 2)
-        end_x = GRID_SIZE // 2 + (GRID_SIZE // 2) * math.cos(self.angle)
-        end_y = GRID_SIZE // 2 + (GRID_SIZE // 2) * math.sin(self.angle)
-        pygame.draw.line(self.image, COLOR_TURRET_CANNON, (GRID_SIZE // 2, GRID_SIZE // 2), (end_x, end_y), 6)
+        self.image.fill((0, 0, 0, 0));
+        pygame.draw.circle(self.image, COLOR_TURRET_BASE, (16, 16), 12)
+        pygame.draw.circle(self.image, COLOR_GRID, (16, 16), 12, 2)
+        end_x, end_y = 16 + 16 * math.cos(self.angle), 16 + 16 * math.sin(self.angle)
+        pygame.draw.line(self.image, COLOR_TURRET_CANNON, (16, 16), (end_x, end_y), 6)
 
     def find_target(self, enemies):
-        self.target = None
-        in_range_enemies = [e for e in enemies if math.hypot(self.rect.centerx - e.rect.centerx,
-                                                             self.rect.centery - e.rect.centery) <= self.range]
-        if in_range_enemies:
-            self.target = max(in_range_enemies, key=lambda e: e.path_index)
+        in_range = [e for e in enemies if
+                    math.hypot(self.rect.centerx - e.rect.centerx, self.rect.centery - e.rect.centery) <= self.range]
+        self.target = max(in_range, key=lambda e: e.path_index) if in_range else None
 
     def update(self, dt, game):
         self.timer -= dt
-        if not self.target or not self.target.alive():
-            self.find_target(game.enemies)
+        if not self.target or not self.target.alive(): self.find_target(game.enemies)
         if self.target:
-            dx = self.target.rect.centerx - self.rect.centerx
-            dy = self.target.rect.centery - self.rect.centery
-            self.angle = math.atan2(dy, dx)
+            dx, dy = self.target.rect.centerx - self.rect.centerx, self.target.rect.centery - self.rect.centery
+            self.angle = math.atan2(dy, dx);
             self.draw()
             if self.timer <= 0:
-                proj = Projectile(self.rect.centerx, self.rect.centery, self.target, self.damage)
-                game.projectiles.add(proj)
+                game.projectiles.add(Projectile(self.rect.centerx, self.rect.centery, self.target, self.damage))
                 self.timer = self.cooldown
 
     def upgrade(self):
-        super().upgrade()
-        self.range += 15
-        self.damage += 2
-        self.cooldown *= 0.9
-        self.upgrade_cost += 25
+        super().upgrade(); self.range += 15; self.damage += 2; self.cooldown *= 0.9; self.upgrade_cost += 25
 
 
-# --- Button Class ---
 class Button:
-    def __init__(self, x, y, width, height, text, font):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.text = text
+    def __init__(self, x, y, width, height, text, font, action=None):
+        self.rect = pygame.Rect(x, y, width, height);
+        self.text = text;
         self.font = font
-        self.is_hovered = False
+        self.action = action;
+        self.is_hovered = False;
+        self.is_enabled = True
 
     def draw(self, screen):
-        color = COLOR_BUTTON_HOVER if self.is_hovered else COLOR_BUTTON
-        pygame.draw.rect(screen, color, self.rect, border_radius=10)
+        c = COLOR_BUTTON_HOVER if self.is_hovered and self.is_enabled else (
+            COLOR_BUTTON if self.is_enabled else COLOR_DISABLED_BUTTON)
+        pygame.draw.rect(screen, c, self.rect, border_radius=10)
         pygame.draw.rect(screen, COLOR_UI_BORDER, self.rect, 2, border_radius=10)
         text_surf = self.font.render(self.text, True, COLOR_TEXT)
         screen.blit(text_surf, text_surf.get_rect(center=self.rect.center))
 
-    def check_hover(self, mouse_pos):
-        self.is_hovered = self.rect.collidepoint(mouse_pos)
+    def check_hover(self, mouse_pos): self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def click(self):
+        if self.action and self.is_enabled: self.action()
 
 
-# --- Game Class ---
 class Game:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT));
         pygame.display.set_caption("Dungeon Warfare")
-        self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont(None, 36)
-        self.small_font = pygame.font.SysFont(None, 28)
-        self.large_font = pygame.font.SysFont(None, 72)
+        self.clock = pygame.time.Clock();
         self.running = True
-        self.game_state = "playing"
-        self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 100, 200, 50, "New Game", self.font)
-        self.reset_game()
+        self.font = pygame.font.SysFont(None, 36);
+        self.small_font = pygame.font.SysFont(None, 28);
+        self.large_font = pygame.font.SysFont(None, 72)
+        self.research = Research();
+        self.game_state = "main_menu"
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2, 200, 50, "New Game", self.font,
+                                      action=self.start_new_game)
+        self.research_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 70, 200, 50, "Research Lab",
+                                      self.font, action=lambda: self.set_state("research_lab"))
+        self.main_menu_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 100, 200, 50, "Main Menu", self.font,
+                                       action=lambda: self.set_state("main_menu"))
+        self.setup_research_buttons()
+
+    def setup_research_buttons(self):
+        self.research_buttons = {}
+        y_start = 150
+        upgrades = {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
+                    'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng'}
+        for i, (key, name) in enumerate(upgrades.items()):
+            self.research_buttons[key] = Button(SCREEN_WIDTH // 2 + 50, y_start + i * 50, 50, 40, "+", self.font,
+                                                action=lambda k=key: self.research.purchase_upgrade(k))
 
     def reset_game(self):
         self.path_list = []
-        while not self.path_list:
-            self.grid = self.create_grid()
-            self.path_list = self.find_path()
+        while not self.path_list: self.grid = self.create_grid(); self.path_list = self.find_path()
         self.path_set = set(self.path_list)
-        self.enemies = pygame.sprite.Group()
-        self.traps = pygame.sprite.Group()
+        self.enemies = pygame.sprite.Group();
+        self.traps = pygame.sprite.Group();
         self.projectiles = pygame.sprite.Group()
-        self.money = 20000
-        self.lives = 20
-        self.wave = 0
+        self.money = 2000;
+        self.lives = 20;
+        self.wave = 0;
         self.wave_timer = 10
-        self.wave_in_progress = False
-        self.enemies_killed = 0
-        self.money_earned = 20000
-        self.selected_trap_type = None
+        self.wave_in_progress = False;
+        self.enemies_killed = 0;
+        self.money_earned = 2000
+        self.selected_trap_type = None;
         self.selected_trap_instance = None
-        self.game_state = "playing"
+
+    def start_new_game(self):
+        self.reset_game(); self.set_state("playing")
+
+    def end_game(self, victory):
+        self.research.data['stats']['games_played'] += 1;
+        self.research.data['stats']['total_kills'] += self.enemies_killed
+        waves_survived = TOTAL_WAVES if victory else (self.wave - (1 if self.wave_in_progress else 0))
+        points_earned = (waves_survived * 5) + (self.enemies_killed // 2)
+        if victory: self.research.data['stats']['victories'] += 1; points_earned += 50
+        self.research.data['research_points'] += points_earned;
+        self.research.save()
+        self.last_game_stats = {'waves': waves_survived, 'kills': self.enemies_killed, 'points': points_earned,
+                                'victory': victory}
+        self.set_state("game_over")
 
     def register_kill(self):
-        self.enemies_killed += 1
-        self.money += 5
-        self.money_earned += 5
+        self.enemies_killed += 1; self.money += 5; self.money_earned += 5
 
     def create_grid(self):
         grid = [[1 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
-                if 1 < x < GRID_WIDTH - 2 and random.random() < 0.3:
-                    grid[y][x] = 0
-        grid[GRID_HEIGHT // 2][0] = 1
-        grid[GRID_HEIGHT // 2][GRID_WIDTH - 1] = 1
+                if 1 < x < GRID_WIDTH - 2 and random.random() < 0.3: grid[y][x] = 0
+        grid[GRID_HEIGHT // 2][0] = 1;
+        grid[GRID_HEIGHT // 2][GRID_WIDTH - 1] = 1;
         return grid
 
     def find_path(self):
-        start = (0, GRID_HEIGHT // 2)
-        end = (GRID_WIDTH - 1, GRID_HEIGHT // 2)
-        open_set = {start}
-        came_from = {}
-        g_score = {(x, y): float('inf') for y in range(GRID_HEIGHT) for x in range(GRID_WIDTH)}
-        g_score[start] = 0
-        f_score = {(x, y): float('inf') for y in range(GRID_HEIGHT) for x in range(GRID_WIDTH)}
-        f_score[start] = abs(start[0] - end[0]) + abs(start[1] - end[1])
-
+        start, end = (0, GRID_HEIGHT // 2), (GRID_WIDTH - 1, GRID_HEIGHT // 2)
+        open_set, came_from = {start}, {};
+        g_score, f_score = {}, {}
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH): g_score[(x, y)], f_score[(x, y)] = float('inf'), float('inf')
+        g_score[start], f_score[start] = 0, abs(start[0] - end[0]) + abs(start[1] - end[1])
         while open_set:
             current = min(open_set, key=lambda o: f_score.get(o, float('inf')))
             if current == end:
-                path = []
-                while current in came_from:
-                    path.append(current)
-                    current = came_from[current]
-                path.append(start)
+                path = [];
+                while current in came_from: path.append(current); current = came_from[current]
+                path.append(start);
                 return path[::-1]
             open_set.remove(current)
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
                 neighbor = (current[0] + dx, current[1] + dy)
                 if 0 <= neighbor[0] < GRID_WIDTH and 0 <= neighbor[1] < GRID_HEIGHT and self.grid[neighbor[1]][
                     neighbor[0]] == 1:
-                    tentative_g_score = g_score.get(current, float('inf')) + 1
-                    if tentative_g_score < g_score.get(neighbor, float('inf')):
-                        came_from[neighbor] = current
-                        g_score[neighbor] = tentative_g_score
+                    tentative_g = g_score.get(current, float('inf')) + 1
+                    if tentative_g < g_score.get(neighbor, float('inf')):
+                        came_from[neighbor], g_score[neighbor] = current, tentative_g
                         f_score[neighbor] = g_score[neighbor] + abs(neighbor[0] - end[0]) + abs(neighbor[1] - end[1])
-                        if neighbor not in open_set:
-                            open_set.add(neighbor)
+                        if neighbor not in open_set: open_set.add(neighbor)
         return []
 
+    def set_state(self, state):
+        self.game_state = state
+
     def run(self):
-        while self.running:
-            dt = self.clock.tick(FPS) / 1000.0
-            self.handle_events()
-            self.update(dt)
-            self.draw()
+        while self.running: dt = self.clock.tick(FPS) / 1000.0; self.handle_events(); self.update(dt); self.draw()
 
     def handle_events(self):
+        # --- CORRECTED EVENT HANDLING LOGIC ---
+        mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
+            if event.type == pygame.QUIT: self.running = False
+
             if self.game_state == "playing":
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.handle_mouse_click(event.pos)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: self.handle_mouse_click(event.pos)
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_1:
                         self.selected_trap_type, self.selected_trap_instance = "spike", None
@@ -417,13 +437,27 @@ class Game:
                     elif event.key == pygame.K_3:
                         self.selected_trap_type, self.selected_trap_instance = "turret", None
                     elif event.key == pygame.K_u and self.selected_trap_instance:
-                        if self.money >= self.selected_trap_instance.upgrade_cost:
-                            self.money -= self.selected_trap_instance.upgrade_cost
-                            self.selected_trap_instance.upgrade()
-            else:
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if self.new_game_button.rect.collidepoint(event.pos):
-                        self.reset_game()
+                        if self.money >= self.selected_trap_instance.upgrade_cost: self.money -= self.selected_trap_instance.upgrade_cost; self.selected_trap_instance.upgrade()
+
+            elif self.game_state == "main_menu":
+                self.new_game_button.check_hover(mouse_pos)
+                self.research_button.check_hover(mouse_pos)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.new_game_button.is_hovered: self.new_game_button.click()
+                    if self.research_button.is_hovered: self.research_button.click()
+
+            elif self.game_state == "research_lab":
+                self.main_menu_button.check_hover(mouse_pos)
+                for btn in self.research_buttons.values(): btn.check_hover(mouse_pos)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.main_menu_button.is_hovered: self.main_menu_button.click()
+                    for btn in self.research_buttons.values():
+                        if btn.is_hovered: btn.click()
+
+            elif self.game_state == "game_over":
+                self.main_menu_button.check_hover(mouse_pos)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.main_menu_button.is_hovered: self.main_menu_button.click()
 
     def handle_mouse_click(self, pos):
         grid_x, grid_y = pos[0] // GRID_SIZE, pos[1] // GRID_SIZE
@@ -440,68 +474,93 @@ class Game:
         return None
 
     def place_trap(self, x, y):
-        is_wall = self.grid[y][x] == 0
-        can_place = (self.selected_trap_type == 'turret' and is_wall) or \
-                    (self.selected_trap_type != 'turret' and not is_wall)
+        is_wall = self.grid[y][x] == 0;
+        can_place = (self.selected_trap_type == 'turret' and is_wall) or (
+                    self.selected_trap_type != 'turret' and not is_wall)
         if not can_place: return
-
-        if self.selected_trap_type == "spike" and self.money >= 50:
-            self.traps.add(SpikeTrap(x, y));
-            self.money -= 50
-        elif self.selected_trap_type == "slow" and self.money >= 75:
-            self.traps.add(SlowTrap(x, y));
-            self.money -= 75
-        elif self.selected_trap_type == "turret" and self.money >= 100:
-            self.traps.add(TurretTrap(x, y));
-            self.money -= 100
+        cost = {'spike': 50, 'slow': 75, 'turret': 100}.get(self.selected_trap_type)
+        if self.money >= cost:
+            trap_class = {'spike': SpikeTrap, 'slow': SlowTrap, 'turret': TurretTrap}[self.selected_trap_type]
+            self.traps.add(trap_class(x, y, self.research));
+            self.money -= cost
 
     def update(self, dt):
         if self.game_state == "playing":
-            self.enemies.update(dt)
-            self.traps.update(dt, self)
+            self.enemies.update(dt);
+            self.traps.update(dt, self);
             self.projectiles.update(dt)
             for enemy in list(self.enemies):
-                if enemy.path_index >= len(self.path_list) - 1:
-                    self.lives -= 1
-                    enemy.kill()
-                    if self.lives <= 0: self.lives, self.game_state = 0, "game_over"
+                if enemy.path_index >= len(self.path_list) - 1: self.lives -= 1; enemy.kill();
+            if self.lives <= 0: self.end_game(False)
             if not self.wave_in_progress:
                 self.wave_timer -= dt
                 if self.wave_timer <= 0: self.start_wave()
             if self.wave_in_progress and not self.enemies:
                 self.wave_in_progress = False
                 if self.wave >= TOTAL_WAVES:
-                    self.game_state = "victory"
+                    self.end_game(True)
                 else:
                     self.wave_timer = 10
-        else:
-            self.new_game_button.check_hover(pygame.mouse.get_pos())
 
     def start_wave(self):
-        self.wave += 1
-        self.wave_in_progress = True
+        self.wave += 1;
+        self.wave_in_progress = True;
         enemy_health = 10 + (self.wave - 1) * 7
         for i in range(self.wave * 5):
-            enemy = Enemy(self.path_list, enemy_health, self)
-            enemy.rect.centerx -= i * 40
+            enemy = Enemy(self.path_list, enemy_health, self);
+            enemy.rect.centerx -= i * 40;
             self.enemies.add(enemy)
 
     def draw(self):
-        self.screen.fill((0, 0, 0))
-        if self.game_state == "playing":
-            self.draw_grid()
-            if isinstance(self.selected_trap_instance, TurretTrap):
-                self.draw_range_indicator(self.selected_trap_instance)
-            self.traps.draw(self.screen)
-            for trap in self.traps: trap.draw_health_bar(self.screen)
-            self.projectiles.draw(self.screen)
-            self.enemies.draw(self.screen)
-            self.draw_ui()
+        self.screen.fill(COLOR_UI_BG)
+        if self.game_state == "main_menu":
+            self.draw_main_menu()
+        elif self.game_state == "research_lab":
+            self.draw_research_lab()
+        elif self.game_state == "playing":
+            self.draw_game_screen()
         elif self.game_state == "game_over":
-            self.draw_end_screen("Game Over", COLOR_GAME_OVER_BG)
-        elif self.game_state == "victory":
-            self.draw_end_screen("Victory!", COLOR_WIN_BG)
+            self.draw_end_screen()
         pygame.display.flip()
+
+    def draw_game_screen(self):
+        self.draw_grid()
+        if isinstance(self.selected_trap_instance, TurretTrap): self.draw_range_indicator(self.selected_trap_instance)
+        self.traps.draw(self.screen);
+        for trap in self.traps: trap.draw_health_bar(self.screen)
+        self.projectiles.draw(self.screen);
+        self.enemies.draw(self.screen);
+        self.draw_ui()
+
+    def draw_main_menu(self):
+        title = self.large_font.render("Dungeon Warfare", True, COLOR_TEXT)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
+        self.new_game_button.draw(self.screen);
+        self.research_button.draw(self.screen)
+
+    def draw_research_lab(self):
+        title = self.large_font.render("Research Lab", True, COLOR_TEXT)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, 70)))
+        rp_text = self.font.render(f"Research Points: {self.research.data['research_points']}", True, COLOR_TEXT)
+        self.screen.blit(rp_text, rp_text.get_rect(center=(SCREEN_WIDTH // 2, 120)))
+        y_start = 150
+        upgrades = {'spike_damage': 'Spike Damage', 'spike_health': 'Spike Health', 'slow_duration': 'Slow Duration',
+                    'slow_health': 'Slow Health', 'turret_damage': 'Turret Damage', 'turret_range': 'Turret Range'}
+        for i, (key, name) in enumerate(upgrades.items()):
+            level = self.research.data['upgrades'][key];
+            cost = self.research.get_upgrade_cost(key)
+            text = self.font.render(f"{name}: Lvl {level} (Cost: {cost})", True, COLOR_TEXT)
+            self.screen.blit(text, (SCREEN_WIDTH // 2 - 250, y_start + i * 50))
+            btn = self.research_buttons[key];
+            btn.is_enabled = self.research.data['research_points'] >= cost
+            btn.draw(self.screen)
+        stats_text = self.font.render("Lifetime Stats:", True, COLOR_TEXT);
+        self.screen.blit(stats_text, (100, y_start))
+        s = self.research.data['stats']
+        self.screen.blit(self.font.render(f"Games Played: {s['games_played']}", True, COLOR_TEXT), (100, y_start + 50))
+        self.screen.blit(self.font.render(f"Victories: {s['victories']}", True, COLOR_TEXT), (100, y_start + 100))
+        self.screen.blit(self.font.render(f"Total Kills: {s['total_kills']}", True, COLOR_TEXT), (100, y_start + 150))
+        self.main_menu_button.draw(self.screen)
 
     def draw_range_indicator(self, turret):
         s = pygame.Surface((turret.range * 2, turret.range * 2), pygame.SRCALPHA)
@@ -516,8 +575,8 @@ class Game:
                     pygame.draw.rect(self.screen, COLOR_WALL, rect)
                 else:
                     pygame.draw.rect(self.screen, COLOR_PATH, rect)
-                    if (x, y) in self.path_set:
-                        pygame.draw.circle(self.screen, COLOR_PATH_INDICATOR, rect.center, GRID_SIZE // 4)
+                if (x, y) in self.path_set: pygame.draw.circle(self.screen, COLOR_PATH_INDICATOR, rect.center,
+                                                               GRID_SIZE // 4)
                 pygame.draw.rect(self.screen, COLOR_GRID, rect, 1)
 
     def draw_ui(self):
@@ -531,47 +590,43 @@ class Game:
         if not self.wave_in_progress and self.wave < TOTAL_WAVES:
             self.screen.blit(self.font.render(f"Next Wave: {int(self.wave_timer) + 1}s", True, COLOR_TEXT),
                              (200, SCREEN_HEIGHT - 50))
-        self.screen.blit(self.small_font.render("1: Spike (50) 2: Slow (75) 3: Turret (100)", True, COLOR_TEXT),
+        self.screen.blit(self.small_font.render("1:Spike(50) 2:Slow(75) 3:Turret(100)", True, COLOR_TEXT),
                          (380, SCREEN_HEIGHT - 90))
-        self.screen.blit(
-            self.small_font.render("Click trap, then 'U' to upgrade. Turrets go on walls.", True, COLOR_TEXT),
-            (380, SCREEN_HEIGHT - 50))
+        self.screen.blit(self.small_font.render("Click trap, then 'U' to upgrade.", True, COLOR_TEXT),
+                         (380, SCREEN_HEIGHT - 50))
         if self.selected_trap_instance:
-            trap = self.selected_trap_instance
-            cost_text = f"Upgrade: {trap.upgrade_cost} | Health: {trap.health}/{trap.max_health}"
+            trap = self.selected_trap_instance;
+            cost = f"Upg: {trap.upgrade_cost} | HP: {int(trap.health)}/{int(trap.max_health)}"
             if isinstance(trap, SpikeTrap):
-                info = f"Spike | Lvl {trap.level} | Dmg: {trap.damage}"
+                info = f"Spike L{trap.level}|Dmg:{trap.damage}"
             elif isinstance(trap, SlowTrap):
-                info = f"Slow | Lvl {trap.level} | Dur: {trap.slow_duration:.1f}s"
+                info = f"Slow L{trap.level}|Dur:{trap.slow_duration:.1f}s"
             elif isinstance(trap, TurretTrap):
-                info = f"Turret | Lvl {trap.level} | Dmg: {trap.damage}"
-            self.screen.blit(self.font.render(info, True, COLOR_TEXT), (740, SCREEN_HEIGHT - 90))
-            self.screen.blit(self.small_font.render(cost_text, True, COLOR_TEXT), (740, SCREEN_HEIGHT - 50))
+                info = f"Turret L{trap.level}|Dmg:{trap.damage}"
+            self.screen.blit(self.font.render(info, True, COLOR_TEXT), (700, SCREEN_HEIGHT - 90))
+            self.screen.blit(self.small_font.render(cost, True, COLOR_TEXT), (700, SCREEN_HEIGHT - 50))
 
-    def draw_end_screen(self, title_text, bg_color):
+    def draw_end_screen(self):
+        bg_color = COLOR_WIN_BG if self.last_game_stats['victory'] else COLOR_GAME_OVER_BG
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA);
         overlay.fill((*bg_color, 230));
         self.screen.blit(overlay, (0, 0))
-        title_surf = self.large_font.render(title_text, True, COLOR_TEXT)
-        self.screen.blit(title_surf, title_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
-        stats_box_rect = pygame.Rect(0, 0, 400, 200);
-        stats_box_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20)
-        pygame.draw.rect(self.screen, COLOR_UI_BG, stats_box_rect, border_radius=15);
-        pygame.draw.rect(self.screen, COLOR_UI_BORDER, stats_box_rect, 3, border_radius=15)
-        stats_y_start = stats_box_rect.centery - 45
-        waves_survived = self.wave - 1 if self.game_state == "game_over" and self.wave_in_progress else self.wave
-        if self.game_state == "victory": waves_survived = TOTAL_WAVES
-        self.screen.blit(self.font.render(f"Waves Survived: {waves_survived} / {TOTAL_WAVES}", True, COLOR_TEXT),
-                         self.font.render(f"Waves Survived: {waves_survived} / {TOTAL_WAVES}", True,
-                                          COLOR_TEXT).get_rect(center=(SCREEN_WIDTH // 2, stats_y_start)))
-        self.screen.blit(self.font.render(f"Enemies Killed: {self.enemies_killed}", True, COLOR_TEXT),
-                         self.font.render(f"Enemies Killed: {self.enemies_killed}", True, COLOR_TEXT).get_rect(
-                             center=(SCREEN_WIDTH // 2, stats_y_start + 45)))
-        self.screen.blit(self.font.render(f"Total Money Earned: {self.money_earned}", True, COLOR_TEXT),
-                         self.font.render(f"Total Money Earned: {self.money_earned}", True, COLOR_TEXT).get_rect(
-                             center=(SCREEN_WIDTH // 2, stats_y_start + 90)))
-        self.new_game_button.rect.center = (SCREEN_WIDTH // 2, stats_box_rect.bottom + 60);
-        self.new_game_button.draw(self.screen)
+        title_text = "Victory!" if self.last_game_stats['victory'] else "Game Over"
+        title = self.large_font.render(title_text, True, COLOR_TEXT)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
+        box = pygame.Rect(0, 0, 450, 250);
+        box.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        pygame.draw.rect(self.screen, COLOR_UI_BG, box, border_radius=15);
+        pygame.draw.rect(self.screen, COLOR_UI_BORDER, box, 3, border_radius=15)
+        y_start = box.centery - 80
+        stats = self.last_game_stats
+        texts = [f"Waves Survived: {stats['waves']} / {TOTAL_WAVES}", f"Enemies Killed: {stats['kills']}",
+                 f"Research Points Earned: +{stats['points']}"]
+        for i, text in enumerate(texts):
+            surf = self.font.render(text, True, COLOR_TEXT)
+            self.screen.blit(surf, surf.get_rect(center=(SCREEN_WIDTH // 2, y_start + i * 50)))
+        self.main_menu_button.rect.center = (SCREEN_WIDTH // 2, box.bottom + 60)
+        self.main_menu_button.draw(self.screen)
 
 
 if __name__ == "__main__":
