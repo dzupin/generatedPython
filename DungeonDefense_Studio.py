@@ -81,6 +81,36 @@ class Research:
 
 
 # --- Game Object Classes ---
+class Particle(pygame.sprite.Sprite):
+    def __init__(self, x, y, color):
+        super().__init__()
+        self.x, self.y = x, y
+        self.color = color
+        self.max_lifespan = random.uniform(0.4, 0.9)
+        self.lifespan = self.max_lifespan
+        self.size = random.randint(3, 8)
+        self.image = pygame.Surface([self.size * 2, self.size * 2], pygame.SRCALPHA)
+        pygame.draw.circle(self.image, self.color, (self.size, self.size), self.size)
+        self.rect = self.image.get_rect(center=(self.x, self.y))
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(50, 150)
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        self.gravity = 180
+
+    def update(self, dt):
+        self.lifespan -= dt
+        if self.lifespan <= 0:
+            self.kill();
+            return
+        self.x += self.vx * dt
+        self.vy += self.gravity * dt
+        self.y += self.vy * dt
+        self.rect.center = (self.x, self.y)
+        alpha = max(0, int(255 * (self.lifespan / self.max_lifespan)))
+        self.image.set_alpha(alpha)
+
+
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, x, y, target, damage):
         super().__init__()
@@ -101,7 +131,7 @@ class Projectile(pygame.sprite.Sprite):
 
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, path, health, speed, trap_damage, game):
+    def __init__(self, path, health, speed, trap_damage, color, game):
         super().__init__()
         self.game = game;
         self.path = path;
@@ -112,7 +142,8 @@ class Enemy(pygame.sprite.Sprite):
         self.health = health;
         self.trap_damage = trap_damage
         self.is_slowed = False;
-        self.slow_timer = 0
+        self.slow_timer = 0;
+        self.color = color
         self.image = pygame.Surface([GRID_SIZE - 4, GRID_SIZE - 4], pygame.SRCALPHA)
         self.rect = self.image.get_rect(
             center=(self.x * GRID_SIZE + GRID_SIZE // 2, self.y * GRID_SIZE + GRID_SIZE // 2))
@@ -138,7 +169,10 @@ class Enemy(pygame.sprite.Sprite):
         self.health -= amount; self.health = max(0, self.health); self.check_death()
 
     def check_death(self):
-        if self.health <= 0: self.game.register_kill(); self.kill()
+        if self.health <= 0:
+            self.game.create_explosion(self.rect.centerx, self.rect.centery, self.color)
+            self.game.register_kill();
+            self.kill()
 
     def slow(self, duration):
         self.is_slowed = True; self.slow_timer = duration
@@ -153,36 +187,36 @@ class Enemy(pygame.sprite.Sprite):
 
 class Grunt(Enemy):
     def __init__(self, path, health, game):
-        super().__init__(path, health, 2.5, 5, game)
+        super().__init__(path, health, 2.5, 5, COLOR_ENEMY_GRUNT, game);
         self.draw_enemy()
 
     def draw_enemy(self):
-        pygame.draw.rect(self.image, COLOR_ENEMY_GRUNT, self.image.get_rect())
+        pygame.draw.rect(self.image, self.color, self.image.get_rect())
         pygame.draw.rect(self.image, (255, 100, 100), self.image.get_rect(), 2)
 
 
 class Brute(Enemy):
     def __init__(self, path, health, game):
-        super().__init__(path, int(health * 1.8), 2.0, 10, game)
+        super().__init__(path, int(health * 1.8), 2.0, 10, COLOR_ENEMY_BRUTE, game);
         self.draw_enemy()
 
     def draw_enemy(self):
-        w, h = self.image.get_size()
+        w, h = self.image.get_size();
         points = [(w // 2, 0), (w, h // 4), (w, 3 * h // 4), (w // 2, h), (0, 3 * h // 4), (0, h // 4)]
-        pygame.draw.polygon(self.image, COLOR_ENEMY_BRUTE, points)
+        pygame.draw.polygon(self.image, self.color, points);
         pygame.draw.polygon(self.image, (255, 100, 255), points, 2)
 
 
 class Tank(Enemy):
     def __init__(self, path, health, game):
-        super().__init__(path, int(health * 3.5), 1.5, 20, game)
+        super().__init__(path, int(health * 3.5), 1.5, 20, COLOR_ENEMY_TANK, game);
         self.draw_enemy()
 
     def draw_enemy(self):
-        w, h = self.image.get_size()
+        w, h = self.image.get_size();
         points = [(w // 4, 0), (3 * w // 4, 0), (w, h // 4), (w, 3 * h // 4), (3 * w // 4, h), (w // 4, h),
                   (0, 3 * h // 4), (0, h // 4)]
-        pygame.draw.polygon(self.image, COLOR_ENEMY_TANK, points)
+        pygame.draw.polygon(self.image, self.color, points);
         pygame.draw.polygon(self.image, (100, 255, 100), points, 2)
 
 
@@ -193,7 +227,7 @@ class Trap(pygame.sprite.Sprite):
         self.cost, self.upgrade_cost = cost, upgrade_cost;
         self.level = 1;
         self.research = research
-        self.image = pygame.Surface([GRID_SIZE, GRID_SIZE], pygame.SRCALPHA)
+        self.image = pygame.Surface([GRID_SIZE, GRID_SIZE], pygame.SRCALPHA);
         self.rect = self.image.get_rect(topleft=(x * GRID_SIZE, y * GRID_SIZE))
         self.base_max_health = max_health;
         self.max_health = self.base_max_health;
@@ -210,17 +244,17 @@ class Trap(pygame.sprite.Sprite):
 
     def draw_health_bar(self, surface):
         if self.health < self.max_health:
-            bar = pygame.Rect(self.rect.left + 2, self.rect.top - 7, GRID_SIZE - 4, 5)
-            pygame.draw.rect(surface, COLOR_HEALTH_BAR_BG, bar);
-            bar.width = (GRID_SIZE - 4) * (self.health / self.max_health)
+            bar = pygame.Rect(self.rect.left + 2, self.rect.top - 7, GRID_SIZE - 4, 5);
+            pygame.draw.rect(surface, COLOR_HEALTH_BAR_BG, bar)
+            bar.width = (GRID_SIZE - 4) * (self.health / self.max_health);
             pygame.draw.rect(surface, COLOR_HEALTH_BAR_FG, bar)
 
 
 class SpikeTrap(Trap):
     def __init__(self, x, y, research):
-        super().__init__(x, y, 50, 30, 75, research)
+        super().__init__(x, y, 50, 30, 75, research);
         self.damage_bonus = self.research.data['upgrades']['spike_damage']
-        self.health_bonus = 1 + (self.research.data['upgrades']['spike_health'] * 0.1)
+        self.health_bonus = 1 + (self.research.data['upgrades']['spike_health'] * 0.1);
         self.max_health = int(self.base_max_health * self.health_bonus);
         self.health = self.max_health
         self.damage = 5 + self.damage_bonus;
@@ -255,9 +289,9 @@ class SpikeTrap(Trap):
 
 class SlowTrap(Trap):
     def __init__(self, x, y, research):
-        super().__init__(x, y, 75, 40, 100, research)
+        super().__init__(x, y, 75, 40, 100, research);
         self.duration_bonus = self.research.data['upgrades']['slow_duration'] * 0.25
-        self.health_bonus = 1 + (self.research.data['upgrades']['slow_health'] * 0.1)
+        self.health_bonus = 1 + (self.research.data['upgrades']['slow_health'] * 0.1);
         self.max_health = int(self.base_max_health * self.health_bonus);
         self.health = self.max_health
         self.slow_duration = 3 + self.duration_bonus;
@@ -277,11 +311,11 @@ class SlowTrap(Trap):
 
 class TurretTrap(Trap):
     def __init__(self, x, y, research):
-        super().__init__(x, y, 100, 50, 50, research)
+        super().__init__(x, y, 100, 50, 50, research);
         self.damage_bonus = self.research.data['upgrades']['turret_damage'];
         self.range_bonus = self.research.data['upgrades']['turret_range'] * 10
         self.damage = 3 + self.damage_bonus;
-        self.range = 100 + self.range_bonus
+        self.range = 100 + self.range_bonus;
         self.cooldown = 1.0;
         self.timer = 0;
         self.angle = 0;
@@ -361,12 +395,13 @@ class Game:
         self.setup_research_buttons()
 
     def setup_research_buttons(self):
-        self.research_buttons = {}
+        self.research_buttons = {};
         y, upgrades = 150, {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
                             'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng'}
-        for i, (key, name) in enumerate(upgrades.items()):
-            self.research_buttons[key] = Button(SCREEN_WIDTH // 2 + 50, y + i * 50, 50, 40, "+", self.font,
-                                                action=lambda k=key: self.research.purchase_upgrade(k))
+        for i, (key, name) in enumerate(upgrades.items()): self.research_buttons[key] = Button(SCREEN_WIDTH // 2 + 50,
+                                                                                               y + i * 50, 50, 40, "+",
+                                                                                               self.font, action=lambda
+                k=key: self.research.purchase_upgrade(k))
 
     def reset_game(self):
         self.path_list = []
@@ -374,7 +409,8 @@ class Game:
         self.path_set = set(self.path_list);
         self.enemies = pygame.sprite.Group();
         self.traps = pygame.sprite.Group();
-        self.projectiles = pygame.sprite.Group()
+        self.projectiles = pygame.sprite.Group();
+        self.particles = pygame.sprite.Group()
         self.money = 2000;
         self.lives = 20;
         self.wave = 0;
@@ -402,6 +438,9 @@ class Game:
 
     def register_kill(self):
         self.enemies_killed += 1; self.money += 5; self.money_earned += 5
+
+    def create_explosion(self, x, y, color):
+        for _ in range(15): self.particles.add(Particle(x, y, color))
 
     def create_grid(self):
         grid = [[1 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
@@ -506,7 +545,8 @@ class Game:
         if self.game_state == "playing":
             self.enemies.update(dt);
             self.traps.update(dt, self);
-            self.projectiles.update(dt)
+            self.projectiles.update(dt);
+            self.particles.update(dt)
             for enemy in list(self.enemies):
                 if enemy.path_index >= len(self.path_list) - 1: self.lives -= 1; enemy.kill();
             if self.lives <= 0: self.end_game(False)
@@ -528,7 +568,7 @@ class Game:
         if self.wave >= 4: enemy_pool.append(Brute)
         if self.wave >= 7: enemy_pool.append(Tank)
         for i in range(self.wave * 4):
-            enemy_class = random.choice(enemy_pool)
+            enemy_class = random.choice(enemy_pool);
             enemy = enemy_class(self.path_list, base_health, self);
             enemy.rect.centerx -= i * 40;
             self.enemies.add(enemy)
@@ -548,11 +588,12 @@ class Game:
     def draw_game_screen(self):
         self.draw_grid()
         if isinstance(self.selected_trap_instance, TurretTrap): self.draw_range_indicator(self.selected_trap_instance)
-        self.traps.draw(self.screen);
+        self.traps.draw(self.screen)
         for trap in self.traps: trap.draw_health_bar(self.screen)
+        self.enemies.draw(self.screen);
         for enemy in self.enemies: enemy.draw_health_bar(self.screen)
         self.projectiles.draw(self.screen);
-        self.enemies.draw(self.screen);
+        self.particles.draw(self.screen);
         self.draw_ui()
 
     def draw_main_menu(self):
@@ -578,9 +619,9 @@ class Game:
         stats_text = self.font.render("Lifetime Stats:", True, COLOR_TEXT);
         self.screen.blit(stats_text, (100, y))
         s = self.research.data['stats']
-        self.screen.blit(self.font.render(f"Games: {s['games_played']}", True, COLOR_TEXT), (100, y + 50))
+        self.screen.blit(self.font.render(f"Games: {s['games_played']}", True, COLOR_TEXT), (100, y + 50));
         self.screen.blit(self.font.render(f"Victories: {s['victories']}", True, COLOR_TEXT), (100, y + 100))
-        self.screen.blit(self.font.render(f"Total Kills: {s['total_kills']}", True, COLOR_TEXT), (100, y + 150))
+        self.screen.blit(self.font.render(f"Total Kills: {s['total_kills']}", True, COLOR_TEXT), (100, y + 150));
         self.main_menu_button.draw(self.screen)
 
     def draw_range_indicator(self, turret):
