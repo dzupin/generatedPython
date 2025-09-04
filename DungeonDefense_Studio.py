@@ -16,6 +16,7 @@ TOTAL_WAVES = 10
 COLOR_WALL = (50, 50, 50)
 COLOR_PATH = (100, 100, 100)
 COLOR_GRID = (70, 70, 70)
+COLOR_PATH_INDICATOR = (40, 40, 40)  # New color for the path
 COLOR_UI_BG = (30, 30, 30)
 COLOR_UI_BORDER = (150, 150, 150)
 COLOR_TEXT = (255, 255, 255)
@@ -237,14 +238,14 @@ class Game:
 
     def reset_game(self):
         """ Resets the game to its initial state """
-
-        # --- FIX IMPLEMENTATION ---
         # Loop until a valid path is found
-        self.path = []
-        while not self.path:
+        self.path_list = []
+        while not self.path_list:
             self.grid = self.create_grid()
-            self.path = self.find_path()
-        # --- END OF FIX ---
+            self.path_list = self.find_path()
+
+        # Convert path list to a set for fast lookups during drawing
+        self.path_set = set(self.path_list)
 
         self.enemies = pygame.sprite.Group()
         self.traps = pygame.sprite.Group()
@@ -256,7 +257,7 @@ class Game:
         self.wave_in_progress = False
 
         self.enemies_killed = 0
-        self.money_earned = 200
+        self.money_earned = 2000
 
         self.selected_trap_type = None
         self.selected_trap_instance = None
@@ -391,7 +392,7 @@ class Game:
                     self.money_earned += 5
 
             for enemy in list(self.enemies):
-                if enemy.path_index >= len(self.path) - 1:
+                if enemy.path_index >= len(self.path_list) - 1:
                     self.lives -= 1
                     enemy.kill()
                     if self.lives <= 0:
@@ -418,7 +419,7 @@ class Game:
         self.wave_in_progress = True
         enemy_health = 10 + (self.wave - 1) * 5
         for i in range(self.wave * 5):
-            enemy = Enemy(self.path, enemy_health)
+            enemy = Enemy(self.path_list, enemy_health)
             enemy.rect.centerx -= i * 40  # Stagger enemy spawns more
             self.enemies.add(enemy)
 
@@ -437,14 +438,23 @@ class Game:
         pygame.display.flip()
 
     def draw_grid(self):
-        """ Draws the dungeon grid """
+        """ Draws the dungeon grid and the enemy path """
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
                 rect = pygame.Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE)
+                # Draw floor or wall
                 if self.grid[y][x] == 0:
                     pygame.draw.rect(self.screen, COLOR_WALL, rect)
                 else:
                     pygame.draw.rect(self.screen, COLOR_PATH, rect)
+
+                    # If this tile is part of the path, draw an indicator
+                    if (x, y) in self.path_set:
+                        center_x = x * GRID_SIZE + GRID_SIZE // 2
+                        center_y = y * GRID_SIZE + GRID_SIZE // 2
+                        pygame.draw.circle(self.screen, COLOR_PATH_INDICATOR, (center_x, center_y), GRID_SIZE // 4)
+
+                # Draw grid line on top
                 pygame.draw.rect(self.screen, COLOR_GRID, rect, 1)
 
     def draw_ui(self):
@@ -507,7 +517,7 @@ class Game:
         # Stats
         stats_y_start = stats_box_rect.centery - 45
 
-        waves_survived = self.wave - 1 if self.wave_in_progress else self.wave
+        waves_survived = self.wave - 1 if self.game_state == "game_over" and self.wave_in_progress else self.wave
         if self.game_state == "victory":
             waves_survived = TOTAL_WAVES
 
