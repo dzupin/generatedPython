@@ -1,0 +1,9 @@
+{
+    "research_points": 74,
+    "upgrades": {
+        "starting_money": 4,
+        "starting_health": 2,
+        "gatling_damage": 3,
+        "cannon_cost": 3
+    }
+}

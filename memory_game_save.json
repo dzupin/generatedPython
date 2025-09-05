@@ -1,0 +1,21 @@
+{
+    "games_played": 4,
+    "total_play_time": 58,
+    "rank_name": "Beginner",
+    "medal_color": [
+        192,
+        192,
+        192
+    ],
+    "unlocked_palettes": [
+        "Default",
+        "Forest"
+    ],
+    "unlocked_card_backs": [
+        "Default"
+    ],
+    "current_palette": "Forest",
+    "current_card_back": "Default",
+    "total_score": 3020,
+    "high_score": 3020
+}

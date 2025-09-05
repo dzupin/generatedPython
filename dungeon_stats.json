@@ -1,0 +1,18 @@
+{
+    "research_points": 88,
+    "stats": {
+        "games_played": 21,
+        "victories": 20,
+        "total_kills": 4733,
+        "rank_victories": 12
+    },
+    "upgrades": {
+        "spike_damage": 2,
+        "spike_health": 6,
+        "slow_duration": 2,
+        "slow_health": 3,
+        "turret_damage": 32,
+        "turret_range": 24
+    },
+    "rank": "General"
+}
