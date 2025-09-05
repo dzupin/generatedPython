@@ -582,30 +582,38 @@ class Game:
         self.large_font = pygame.font.SysFont("Arial", 36, bold=True)
         self.research = Research()
         self.game_state = "main_menu"
-        # MODIFICATION: Load images
         self.load_assets()
         self.setup_ui()
 
-    # MODIFICATION: New method to load all game images
+    # MODIFICATION: Updated method to load from a subdirectory and handle multiple backgrounds.
     def load_assets(self):
-        """Loads all the image assets for the game."""
-        self.background_image = None
+        """Loads all the image assets for the game from the resource directory."""
+        self.background_images = []
+        self.current_background = None
         self.rank_images = {}
-        try:
-            # Load the main game background (1024x668)
-            self.background_image = pygame.image.load("background.png").convert()
-        except pygame.error as e:
-            print(f"Warning: Could not load background.png. {e}")
+        resource_dir = 'resources_TowerDefenseStudio'
 
+        # Load all 10 background images
+        for i in range(1, 11):
+            try:
+                # Format filename like 'background01.png', 'background02.png', etc.
+                filename = f"background{i:02d}.png"
+                path = os.path.join(resource_dir, filename)
+                image = pygame.image.load(path).convert()
+                self.background_images.append(image)
+            except pygame.error as e:
+                print(f"Warning: Could not load {path}. {e}")
+
+        # Load rank portraits
         for rank in ["Captain", "General", "Admiral"]:
             try:
-                # Load each rank image (e.g., captain.png, 240x400)
                 filename = f"{rank.lower()}.png"
-                image = pygame.image.load(filename).convert_alpha()
+                path = os.path.join(resource_dir, filename)
+                image = pygame.image.load(path).convert_alpha()
                 self.rank_images[rank] = image
             except pygame.error as e:
-                print(f"Warning: Could not load {filename}. {e}")
-                self.rank_images[rank] = None # So we can check for it later
+                print(f"Warning: Could not load {path}. {e}")
+                self.rank_images[rank] = None
 
     def setup_ui(self):
         self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2, 200, 50, "New Game", self.font,
@@ -618,7 +626,6 @@ class Game:
 
     def setup_research_buttons(self):
         self.research_buttons = {}
-        # MODIFICATION: Adjusted x-position to make space for rank image
         y_start, x_start = 150, SCREEN_WIDTH // 2 - 20
         upgrades = {
             'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP',
@@ -630,7 +637,14 @@ class Game:
             self.research_buttons[key] = Button(x_start, y_start + i * 50, 50, 40, "+", self.font,
                                                 action=lambda k=key: self.research.purchase_upgrade(k))
 
+    # MODIFICATION: Added logic to randomly select a background for the new game.
     def reset_game(self):
+        # Select a new random background for this game session
+        if self.background_images:
+            self.current_background = random.choice(self.background_images)
+        else:
+            self.current_background = None
+
         self.path_list = []
         while not self.path_list:
             self.grid = self.create_grid()
@@ -894,7 +908,6 @@ class Game:
             self.enemies.add(enemy)
 
     def draw(self):
-        # MODIFICATION: Removed the global screen.fill. It's now handled by each specific draw method.
         if self.game_state == "main_menu":
             self.draw_main_menu()
         elif self.game_state == "research_lab":
@@ -907,12 +920,13 @@ class Game:
             self.draw_end_screen()
         pygame.display.flip()
 
+    # MODIFICATION: Updated to draw the randomly selected 'current_background'.
     def draw_game_screen(self):
-        # MODIFICATION: Draw the loaded background image first.
-        if self.background_image:
-            self.screen.blit(self.background_image, (0, 0))
+        # Draw the background for the current game session
+        if self.current_background:
+            self.screen.blit(self.current_background, (0, 0))
         else:
-            # Fallback to a solid color if the image is missing
+            # Fallback to a solid color if images are missing
             self.screen.fill(COLOR_PATH)
 
         self.draw_grid()
@@ -927,20 +941,19 @@ class Game:
         self.draw_ui()
 
     def draw_main_menu(self):
-        self.screen.fill(COLOR_UI_BG) # Menus have a solid background
+        self.screen.fill(COLOR_UI_BG)
         title = self.large_font.render("Dungeon Warfare", True, COLOR_TEXT)
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
         self.new_game_button.draw(self.screen)
         self.research_button.draw(self.screen)
 
     def draw_research_lab(self):
-        self.screen.fill(COLOR_UI_BG) # Menus have a solid background
+        self.screen.fill(COLOR_UI_BG)
         title = self.large_font.render("Research Lab", True, COLOR_TEXT)
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, 70)))
         rp_text = self.font.render(f"Research Points: {self.research.data['research_points']}", True, COLOR_TEXT)
         self.screen.blit(rp_text, rp_text.get_rect(center=(SCREEN_WIDTH // 2, 120)))
 
-        # MODIFICATION: Adjusted layout to make space for the rank image on the right
         upgrades_x = SCREEN_WIDTH // 2 - 220
         buttons_x = upgrades_x + 230
         stats_x = 40
@@ -976,11 +989,9 @@ class Game:
             surf = self.font.render(line, True, COLOR_TEXT)
             self.screen.blit(surf, (stats_x, stats_y_start + 50 + (i * 50)))
 
-        # MODIFICATION: Draw the rank picture on the right side
         current_rank = self.research.data['rank']
         rank_image = self.rank_images.get(current_rank)
         if rank_image:
-            # Position the image 20px from the right edge
             image_x = SCREEN_WIDTH - rank_image.get_width() - 20
             self.screen.blit(rank_image, (image_x, 150))
 
@@ -995,19 +1006,14 @@ class Game:
         for y in range(GRID_HEIGHT):
             for x in range(GRID_WIDTH):
                 rect = pygame.Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE)
-                # MODIFICATION: Made walls and paths semi-transparent to show background
                 if self.grid[y][x] == 0:
-                    # Create a temporary surface to draw the transparent rectangle
                     s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA)
-                    s.fill((*COLOR_WALL, 180)) # 180 alpha for transparency
+                    s.fill((*COLOR_WALL, 180))
                     self.screen.blit(s, rect.topleft)
                 else:
-                    # Only draw the path indicator circle, not the whole path rectangle, to show background
                     if (x, y) in self.path_set:
                          pygame.draw.circle(self.screen, (*COLOR_PATH_INDICATOR, 150), rect.center, GRID_SIZE // 4)
-                # Draw the grid lines on top
                 pygame.draw.rect(self.screen, COLOR_GRID, rect, 1)
-
 
     def draw_ui(self):
         ui_rect = pygame.Rect(0, SCREEN_HEIGHT - INFO_PANEL_HEIGHT, SCREEN_WIDTH, INFO_PANEL_HEIGHT)
@@ -1037,9 +1043,8 @@ class Game:
             combo_surf = combo_font.render(f"{self.combo_count}x COMBO!", True, COLOR_COMBO)
             self.screen.blit(combo_surf, combo_surf.get_rect(center=(SCREEN_WIDTH // 2, 50)))
 
-        # --- FIX 2: Re-structured right side of UI to prevent overlap ---
         controls_x = 420
-        info_x = 750  # Start of the selected info panel
+        info_x = 750
 
         # Controls Panel
         self.screen.blit(self.small_font.render("--- Build ---", True, COLOR_UI_BORDER),
@@ -1055,7 +1060,6 @@ class Game:
         if self.selected_trap_instance:
             trap = self.selected_trap_instance
 
-            # Draw a separator line
             pygame.draw.line(self.screen, COLOR_UI_BORDER, (info_x - 20, SCREEN_HEIGHT - INFO_PANEL_HEIGHT + 5),
                              (info_x - 20, SCREEN_HEIGHT - 5), 2)
 
@@ -1078,13 +1082,11 @@ class Game:
             else:
                 info = "Selected Trap"
 
-            # --- Rendering the text in its own clean section ---
             self.screen.blit(self.font.render(info, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 95))
             self.screen.blit(self.small_font.render(hp_text, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 65))
             self.screen.blit(self.small_font.render(cost_text, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 45))
             self.screen.blit(self.small_font.render(sell_text, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 25))
         else:
-            # Show general commands when no trap is selected
             self.screen.blit(self.small_font.render("Click a trap to see details.", True, COLOR_TEXT),
                              (info_x, SCREEN_HEIGHT - 55))
 
