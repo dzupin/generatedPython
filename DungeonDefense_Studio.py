@@ -680,7 +680,7 @@ class Game:
 
         # --- CORRECTED UI LAYOUT ---
         upgrades_x = SCREEN_WIDTH // 2 - 50
-        buttons_x = upgrades_x + 300
+        buttons_x = upgrades_x + 350
         stats_x = 100
 
         upgrades_y = 150
