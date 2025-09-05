@@ -585,7 +585,6 @@ class Game:
         self.load_assets()
         self.setup_ui()
 
-    # MODIFICATION: Updated method to load from a subdirectory and handle multiple backgrounds.
     def load_assets(self):
         """Loads all the image assets for the game from the resource directory."""
         self.background_images = []
@@ -637,9 +636,8 @@ class Game:
             self.research_buttons[key] = Button(x_start, y_start + i * 50, 50, 40, "+", self.font,
                                                 action=lambda k=key: self.research.purchase_upgrade(k))
 
-    # MODIFICATION: Added logic to randomly select a background for the new game.
     def reset_game(self):
-        # Select a new random background for this game session
+        # MODIFICATION: Select an initial background for the game before the first wave.
         if self.background_images:
             self.current_background = random.choice(self.background_images)
         else:
@@ -882,7 +880,19 @@ class Game:
             else:
                 self.wave_timer = 10
 
+    # MODIFICATION: This method now changes the background every time it is called.
     def start_wave(self):
+        # Select a new random background for the new wave.
+        if len(self.background_images) > 1:
+            # Pick a new background that is different from the current one to avoid repeats.
+            new_background = random.choice(self.background_images)
+            while new_background == self.current_background:
+                new_background = random.choice(self.background_images)
+            self.current_background = new_background
+        elif self.background_images:
+            # If there's only one background, just make sure it's selected.
+            self.current_background = self.background_images[0]
+
         self.wave += 1
         self.wave_in_progress = True
         self.wave_timer = 0
@@ -920,7 +930,6 @@ class Game:
             self.draw_end_screen()
         pygame.display.flip()
 
-    # MODIFICATION: Updated to draw the randomly selected 'current_background'.
     def draw_game_screen(self):
         # Draw the background for the current game session
         if self.current_background:
@@ -1012,7 +1021,7 @@ class Game:
                     self.screen.blit(s, rect.topleft)
                 else:
                     if (x, y) in self.path_set:
-                         pygame.draw.circle(self.screen, (*COLOR_PATH_INDICATOR, 150), rect.center, GRID_SIZE // 4)
+                        pygame.draw.circle(self.screen, (*COLOR_PATH_INDICATOR, 150), rect.center, GRID_SIZE // 4)
                 pygame.draw.rect(self.screen, COLOR_GRID, rect, 1)
 
     def draw_ui(self):
