@@ -239,7 +239,7 @@ class Enemy(pygame.sprite.Sprite):
         self.health -= damage
         self.health = max(0, self.health)
         self.game.floating_texts.add(
-            FloatingText(self.rect.centerx, self.rect.top, str(damage), COLOR_DAMAGE_TEXT, self.game.small_font))
+            FloatingText(self.rect.centerx, self.rect.top, str(damage), COLOR_DAMAGE_TEXT, self.game.damage_font))
         self.check_death()
 
     def check_death(self):
@@ -576,10 +576,10 @@ class Game:
         pygame.display.set_caption("Dungeon Warfare: Enhanced")
         self.clock = pygame.time.Clock()
         self.running = True
-        self.font = pygame.font.SysFont("Arial", 32)
-        self.small_font = pygame.font.SysFont("Arial", 24)
-        self.damage_font = pygame.font.SysFont("Arial", 18, bold=True)
-        self.large_font = pygame.font.SysFont("Arial", 72, bold=True)
+        self.font = pygame.font.SysFont("Arial", 24)
+        self.small_font = pygame.font.SysFont("Arial", 18)
+        self.damage_font = pygame.font.SysFont("Arial", 14, bold=True)
+        self.large_font = pygame.font.SysFont("Arial", 36, bold=True)
         self.research = Research()
         self.game_state = "main_menu"
         self.setup_ui()
@@ -907,8 +907,9 @@ class Game:
         rp_text = self.font.render(f"Research Points: {self.research.data['research_points']}", True, COLOR_TEXT)
         self.screen.blit(rp_text, rp_text.get_rect(center=(SCREEN_WIDTH // 2, 120)))
 
-        upgrades_x = SCREEN_WIDTH // 2 - 150
-        buttons_x = upgrades_x + 350
+        upgrades_x = SCREEN_WIDTH // 2 - 200
+        # --- FIX 1: Increased button offset to prevent overlap ---
+        buttons_x = upgrades_x + 400
         stats_x = 100
         upgrades_y = 150
 
@@ -946,7 +947,7 @@ class Game:
 
     def draw_range_indicator(self, turret):
         s = pygame.Surface((turret.range * 2, turret.range * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, COLOR_RANGE_INDICATOR, (turret.range, turret.range), turret.range)
+        pygame.draw.circle(s, COLOR_RANGE_INDICATOR, (turret.range, turret.range), int(turret.range))
         self.screen.blit(s, (turret.rect.centerx - turret.range, turret.rect.centery - turret.range))
 
     def draw_grid(self):
@@ -989,36 +990,56 @@ class Game:
             combo_surf = combo_font.render(f"{self.combo_count}x COMBO!", True, COLOR_COMBO)
             self.screen.blit(combo_surf, combo_surf.get_rect(center=(SCREEN_WIDTH // 2, 50)))
 
-        # Right Panel: Build/Upgrade Info
-        trap_keys = "1:Spike(50) 2:Slow(75) 3:Turret(100) 4:Gold(60)"
-        self.screen.blit(self.small_font.render(trap_keys, True, COLOR_TEXT), (450, SCREEN_HEIGHT - 90))
-        upgrade_keys = "Click trap. [U] to upgrade, [S] to sell."
-        self.screen.blit(self.small_font.render(upgrade_keys, True, COLOR_TEXT), (450, SCREEN_HEIGHT - 55))
+        # --- FIX 2: Re-structured right side of UI to prevent overlap ---
+        controls_x = 420
+        info_x = 750  # Start of the selected info panel
 
-        # Selected Trap Info
+        # Controls Panel
+        self.screen.blit(self.small_font.render("--- Build ---", True, COLOR_UI_BORDER),
+                         (controls_x, SCREEN_HEIGHT - 95))
+        self.screen.blit(self.small_font.render("[1] Spike: $50", True, COLOR_TEXT), (controls_x, SCREEN_HEIGHT - 70))
+        self.screen.blit(self.small_font.render("[2] Slow: $75", True, COLOR_TEXT), (controls_x, SCREEN_HEIGHT - 45))
+        self.screen.blit(self.small_font.render("[3] Turret: $100", True, COLOR_TEXT),
+                         (controls_x + 160, SCREEN_HEIGHT - 70))
+        self.screen.blit(self.small_font.render("[4] Mine: $60", True, COLOR_TEXT),
+                         (controls_x + 160, SCREEN_HEIGHT - 45))
+
+        # Selected Trap Info Panel
         if self.selected_trap_instance:
             trap = self.selected_trap_instance
-            if trap.is_ultimate:
-                cost_text = "ULTIMATE!"
-            else:
-                cost_text = f"Upg: ${trap.upgrade_cost}|Sell: ${int(trap.total_investment * 0.7)}"
 
-            hp_text = f"HP: {int(trap.health)}/{int(trap.max_health)}"
+            # Draw a separator line
+            pygame.draw.line(self.screen, COLOR_UI_BORDER, (info_x - 20, SCREEN_HEIGHT - INFO_PANEL_HEIGHT + 5),
+                             (info_x - 20, SCREEN_HEIGHT - 5), 2)
+
+            if trap.is_ultimate:
+                cost_text = "Status: ULTIMATE!"
+            else:
+                cost_text = f"Upgrade [U]: ${trap.upgrade_cost}"
+
+            sell_text = f"Sell [S]: ${int(trap.total_investment * 0.7)}"
+            hp_text = f"Health: {int(trap.health)}/{int(trap.max_health)}"
 
             if isinstance(trap, SpikeTrap):
-                info = f"Spike L{trap.level}|Dmg:{trap.damage:.1f}"
+                info = f"Spike Trap L{trap.level}"
             elif isinstance(trap, SlowTrap):
-                info = f"Slow L{trap.level}|Dur:{trap.slow_duration:.1f}s"
+                info = f"Slow Trap L{trap.level}"
             elif isinstance(trap, TurretTrap):
-                info = f"Turret L{trap.level}|Dmg:{trap.damage:.1f}"
+                info = f"Turret L{trap.level}"
             elif isinstance(trap, GoldMine):
-                info = f"Mine L{trap.level}|Inc:${trap.income}/5s"
+                info = f"Gold Mine L{trap.level}"
             else:
                 info = "Selected Trap"
 
-            self.screen.blit(self.font.render(info, True, COLOR_TEXT), (780, SCREEN_HEIGHT - 90))
-            self.screen.blit(self.small_font.render(cost_text, True, COLOR_TEXT), (780, SCREEN_HEIGHT - 55))
-            self.screen.blit(self.small_font.render(hp_text, True, COLOR_TEXT), (780, SCREEN_HEIGHT - 25))
+            # --- Rendering the text in its own clean section ---
+            self.screen.blit(self.font.render(info, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 95))
+            self.screen.blit(self.small_font.render(hp_text, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 65))
+            self.screen.blit(self.small_font.render(cost_text, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 45))
+            self.screen.blit(self.small_font.render(sell_text, True, COLOR_TEXT), (info_x, SCREEN_HEIGHT - 25))
+        else:
+            # Show general commands when no trap is selected
+            self.screen.blit(self.small_font.render("Click a trap to see details.", True, COLOR_TEXT),
+                             (info_x, SCREEN_HEIGHT - 55))
 
     def draw_pause_screen(self):
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
