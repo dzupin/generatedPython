@@ -15,7 +15,7 @@
         "name": "Grunt Slayer",
         "description": "Kill 1,000 Grunts.",
         "unlocked": false,
-        "progress": 207,
+        "progress": 416,
         "target": 1000,
         "reward_points": 1000
     },
@@ -23,7 +23,7 @@
         "name": "Boss Hunter",
         "description": "Defeat 10 Bosses.",
         "unlocked": false,
-        "progress": 4,
+        "progress": 8,
         "target": 10,
         "reward_points": 1500
     },
@@ -31,7 +31,7 @@
         "name": "Master Builder",
         "description": "Build 250 traps.",
         "unlocked": false,
-        "progress": 5,
+        "progress": 7,
         "target": 250,
         "reward_points": 100
     },
@@ -51,7 +51,7 @@
         "name": "Millionaire",
         "description": "Earn 1,000,000 gold across all games.",
         "unlocked": false,
-        "progress": 9809,
+        "progress": 20146,
         "target": 1000000,
         "reward_points": 200
     },

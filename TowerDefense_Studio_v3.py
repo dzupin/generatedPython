@@ -42,15 +42,15 @@ COLOR_PROJECTILE = (255, 200, 0)
 COLOR_RANGE_INDICATOR = (255, 255, 255, 50)
 COLOR_HEALTH_BAR_BG = (180, 0, 0)
 COLOR_HEALTH_BAR_FG = (0, 180, 0)
-COLOR_GAME_OVER_BG = (100, 0, 0)
-COLOR_WIN_BG = (0, 100, 0)
+COLOR_GAME_OVER_BG = (100, 0, 0)  # Fallback color
+COLOR_WIN_BG = (0, 100, 0)  # Fallback color
 COLOR_PAUSE_BG = (0, 0, 0, 150)
 COLOR_BUTTON = (0, 80, 150)
 COLOR_BUTTON_HOVER = (50, 130, 200)
 COLOR_DISABLED_BUTTON = (80, 80, 80)
 COLOR_COMBO = (255, 165, 0)
 COLOR_ULTIMATE = (255, 215, 0)
-COLOR_ACHIEVEMENT_BG = (0, 128, 128)  # Teal
+COLOR_ACHIEVEMENT_BG = (0, 128, 128)
 
 
 # --- Achievement System ---
@@ -614,26 +614,31 @@ class Game:
         pygame.display.set_caption("Dungeon Warfare: Enhanced")
         self.clock, self.running = pygame.time.Clock(), True
         self.font, self.small_font = pygame.font.SysFont("Arial", 24), pygame.font.SysFont("Arial", 18)
-        self.damage_font, self.large_font = pygame.font.SysFont("Arial", 14, bold=True), pygame.font.SysFont("Arial",
+        self.damage_font, self.large_font = pygame.font.SysFont("Arial", 36, bold=True), pygame.font.SysFont("Arial",
                                                                                                              36,
                                                                                                              bold=True)
         self.research = Research()
         self.achievement_manager = AchievementManager(self)
         self.game_state = "main_menu"
-        # --- FIXED: Initialize achievement_notifications here ---
         self.achievement_notifications = pygame.sprite.Group()
         self.load_assets();
+        # --- NEW: Attributes for end screen timing and splash screen view ---
+        self.end_screen_timer_start = 0
+        self.last_splash_screen_key = "loss_captain"  # Default image
         self.setup_ui()
 
     def load_assets(self):
         self.background_images, self.current_background, self.rank_images = [], None, {}
-        resource_dir = 'resources_TowerDefenseStudio'  # Assuming assets are in this folder
+        self.end_screen_images = {}
+        resource_dir = 'resources_TowerDefenseStudio'
+
         for i in range(1, 11):
             try:
                 path = os.path.join(resource_dir, f"background{i:02d}.png")
                 self.background_images.append(pygame.image.load(path).convert())
             except pygame.error as e:
                 print(f"Warning: Could not load {path}. {e}")
+
         for rank in ["Captain", "General", "Admiral"]:
             try:
                 path = os.path.join(resource_dir, f"{rank.lower()}.png")
@@ -641,11 +646,27 @@ class Game:
             except pygame.error as e:
                 print(f"Warning: Could not load {path}. {e}"); self.rank_images[rank] = None
 
+        for outcome in ['victory', 'loss']:
+            for rank in ['captain', 'general', 'admiral']:
+                key = f"{outcome}_{rank}"
+                filename = f"{key}.png"
+                try:
+                    path = os.path.join(resource_dir, filename)
+                    image = pygame.image.load(path).convert()
+                    self.end_screen_images[key] = image
+                except pygame.error as e:
+                    print(f"Warning: Could not load {path}. {e}")
+                    self.end_screen_images[key] = None
+
     def setup_ui(self):
-        self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2, 200, 50, "New Game", self.font,
+        # Adjusted button positions for the new button
+        self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 70, 200, 50, "New Game", self.font,
                                       action=self.start_new_game)
-        self.research_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 70, 200, 50, "Research Lab",
+        self.research_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2, 200, 50, "Research Lab",
                                       self.font, action=lambda: self.set_state("research_lab"))
+        # --- NEW: Button to show last end game splash screen ---
+        self.show_splash_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 70, 200, 50, "Last End Screen",
+                                         self.font, action=self.show_previous_splash)
         self.main_menu_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 100, 200, 50, "Main Menu", self.font,
                                        action=lambda: self.set_state("main_menu"))
         self.setup_research_buttons()
@@ -670,7 +691,6 @@ class Game:
         self.path_set = set(self.path_list)
         self.enemies, self.traps, self.projectiles = pygame.sprite.Group(), pygame.sprite.Group(), pygame.sprite.Group()
         self.particles, self.floating_texts = pygame.sprite.Group(), pygame.sprite.Group()
-        # --- FIXED: Empty the group instead of creating it ---
         self.achievement_notifications.empty()
         self.money, self.lives, self.wave = 250, 20, 0
         self.wave_timer, self.wave_in_progress = 10, False
@@ -711,6 +731,13 @@ class Game:
         self.research.save()
         self.last_game_stats = {'waves': waves, 'kills': self.enemies_killed, 'points': points, 'victory': victory,
                                 'clean_bonus': clean_game_bonus}
+
+        # --- NEW: Set timer and store the image key for the splash screen ---
+        self.end_screen_timer_start = pygame.time.get_ticks()
+        outcome_str = 'victory' if victory else 'loss'
+        rank_str = self.research.data['rank'].lower()
+        self.last_splash_screen_key = f"{outcome_str}_{rank_str}"
+
         self.set_state("game_over")
 
     def register_kill(self, value, enemy_type):
@@ -769,6 +796,10 @@ class Game:
     def set_state(self, state):
         self.game_state = state
 
+    # --- NEW: Action for the "Last End Screen" button ---
+    def show_previous_splash(self):
+        self.set_state("showing_splash")
+
     def run(self):
         while self.running: dt = self.clock.tick(FPS) / 1000.0; self.handle_events(); self.update(dt); self.draw()
 
@@ -800,9 +831,11 @@ class Game:
             elif self.game_state == "main_menu":
                 self.new_game_button.check_hover(mouse_pos);
                 self.research_button.check_hover(mouse_pos)
+                self.show_splash_button.check_hover(mouse_pos)  # Check hover for new button
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if self.new_game_button.is_hovered: self.new_game_button.click()
                     if self.research_button.is_hovered: self.research_button.click()
+                    if self.show_splash_button.is_hovered: self.show_splash_button.click()  # Click action for new button
             elif self.game_state == "research_lab":
                 self.main_menu_button.check_hover(mouse_pos)
                 for btn in self.research_buttons.values(): btn.check_hover(mouse_pos)
@@ -810,10 +843,16 @@ class Game:
                     if self.main_menu_button.is_hovered: self.main_menu_button.click()
                     for btn in self.research_buttons.values():
                         if btn.is_hovered: btn.click()
+            # --- NEW: Event handling for the splash screen view ---
+            elif self.game_state == "showing_splash":
+                if event.type == pygame.KEYDOWN or (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1):
+                    self.set_state("main_menu")
             elif self.game_state == "game_over":
                 self.main_menu_button.check_hover(mouse_pos)
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if self.main_menu_button.is_hovered: self.main_menu_button.click()
+                # Only allow clicking the button after the overlay appears
+                if pygame.time.get_ticks() - self.end_screen_timer_start > 5000:
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        if self.main_menu_button.is_hovered: self.main_menu_button.click()
 
     def handle_mouse_click(self, pos):
         gx, gy = pos[0] // GRID_SIZE, pos[1] // GRID_SIZE
@@ -930,6 +969,9 @@ class Game:
         elif self.game_state in ["playing", "paused"]:
             self.draw_game_screen()
             if self.game_state == "paused": self.draw_pause_screen()
+        # --- NEW: Call drawing function for the new splash screen view state ---
+        elif self.game_state == "showing_splash":
+            self.draw_splash_view_screen()
         elif self.game_state == "game_over":
             self.draw_end_screen()
         self.achievement_notifications.draw(self.screen)
@@ -957,6 +999,7 @@ class Game:
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
         self.new_game_button.draw(self.screen);
         self.research_button.draw(self.screen)
+        self.show_splash_button.draw(self.screen)  # Draw the new button
 
     def draw_research_lab(self):
         self.screen.fill(COLOR_UI_BG)
@@ -964,7 +1007,7 @@ class Game:
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, 70)))
         rp_text = self.font.render(f"Research Points: {self.research.data['research_points']}", True, COLOR_TEXT)
         self.screen.blit(rp_text, rp_text.get_rect(center=(SCREEN_WIDTH // 2, 120)))
-        upgrades_x, buttons_x, stats_x, upgrades_y = SCREEN_WIDTH // 2 - 220, SCREEN_WIDTH // 2 - 220 + 350, 40, 150
+        upgrades_x, buttons_x, stats_x, upgrades_y = SCREEN_WIDTH // 2 - 220, SCREEN_WIDTH // 2 - 220 + 330, 40, 150
         upgrades = {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
                     'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng',
                     'gold_income': 'Gold Income'}
@@ -1054,27 +1097,62 @@ class Game:
         pause_text = self.large_font.render("PAUSED", True, COLOR_TEXT)
         self.screen.blit(pause_text, pause_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)))
 
+    # --- NEW: Drawing function for the splash screen viewer ---
+    def draw_splash_view_screen(self):
+        splash_image = self.end_screen_images.get(self.last_splash_screen_key)
+        if splash_image:
+            self.screen.blit(splash_image, (0, 0))
+        else:
+            # Fallback if the image is missing
+            self.screen.fill(COLOR_UI_BG)
+            error_text = self.font.render(f"Image not found: {self.last_splash_screen_key}.png", True, COLOR_TEXT)
+            self.screen.blit(error_text, error_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)))
+
+        # Add a hint to return to the main menu
+        hint_text = self.font.render("Click or press any key to return", True, COLOR_TEXT)
+        hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40))
+        # Add a semi-transparent background for better text readability
+        text_bg_surf = pygame.Surface((hint_rect.width + 20, hint_rect.height + 10), pygame.SRCALPHA)
+        text_bg_surf.fill((0, 0, 0, 150))
+        self.screen.blit(text_bg_surf, (hint_rect.left - 10, hint_rect.top - 5))
+        self.screen.blit(hint_text, hint_rect)
+
+    # --- UPDATED: This function now shows the splash for 5 seconds before the overlay ---
     def draw_end_screen(self):
-        bg = COLOR_WIN_BG if self.last_game_stats['victory'] else COLOR_GAME_OVER_BG
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA);
-        overlay.fill((*bg, 230));
-        self.screen.blit(overlay, (0, 0))
-        title = self.large_font.render("Victory!" if self.last_game_stats['victory'] else "Game Over", True, COLOR_TEXT)
-        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
-        box = pygame.Rect(0, 0, 450, 250);
-        box.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-        pygame.draw.rect(self.screen, COLOR_UI_BG, box, border_radius=15);
-        pygame.draw.rect(self.screen, COLOR_UI_BORDER, box, 3, border_radius=15)
-        y, stats = box.centery - 100, self.last_game_stats
-        texts = [f"Waves Survived: {stats['waves']}/{TOTAL_WAVES}", f"Enemies Killed: {stats['kills']}",
-                 f"Research Points Earned: +{stats['points']}"]
-        if stats['clean_bonus'] > 0:
-            texts.append(f"PERFECT GAME BONUS: +{stats['clean_bonus']} RP")
-        for i, text in enumerate(texts):
-            surf = self.font.render(text, True, COLOR_TEXT)
-            self.screen.blit(surf, surf.get_rect(center=(SCREEN_WIDTH // 2, y + i * 50)))
-        self.main_menu_button.rect.center = (SCREEN_WIDTH // 2, box.bottom + 60)
-        self.main_menu_button.draw(self.screen)
+        background_image = self.end_screen_images.get(self.last_splash_screen_key)
+
+        if background_image:
+            self.screen.blit(background_image, (0, 0))
+        else:
+            # Fallback to a solid color if an image is missing
+            fallback_bg_color = COLOR_WIN_BG if self.last_game_stats['victory'] else COLOR_GAME_OVER_BG
+            self.screen.fill(fallback_bg_color)
+
+        # Only show the overlay menu after 5 seconds have passed
+        elapsed_time = pygame.time.get_ticks() - self.end_screen_timer_start
+        if elapsed_time > 5000:
+            is_victory = self.last_game_stats['victory']
+            title_text = "Victory!" if is_victory else "Game Over"
+            title = self.large_font.render(title_text, True, COLOR_TEXT)
+            self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
+
+            box = pygame.Rect(0, 0, 450, 250);
+            box.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+            pygame.draw.rect(self.screen, (*COLOR_UI_BG, 230), box, border_radius=15)
+            pygame.draw.rect(self.screen, COLOR_UI_BORDER, box, 3, border_radius=15)
+
+            y, stats = box.centery - 100, self.last_game_stats
+            texts = [f"Waves Survived: {stats['waves']}/{TOTAL_WAVES}", f"Enemies Killed: {stats['kills']}",
+                     f"Research Points Earned: +{stats['points']}"]
+            if stats['clean_bonus'] > 0:
+                texts.append(f"PERFECT GAME BONUS: +{stats['clean_bonus']} RP")
+
+            for i, text in enumerate(texts):
+                surf = self.font.render(text, True, COLOR_TEXT)
+                self.screen.blit(surf, surf.get_rect(center=(SCREEN_WIDTH // 2, y + i * 50)))
+
+            self.main_menu_button.rect.center = (SCREEN_WIDTH // 2, box.bottom + 60)
+            self.main_menu_button.draw(self.screen)
 
 
 if __name__ == "__main__":
