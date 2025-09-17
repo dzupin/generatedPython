@@ -964,7 +964,7 @@ class Game:
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, 70)))
         rp_text = self.font.render(f"Research Points: {self.research.data['research_points']}", True, COLOR_TEXT)
         self.screen.blit(rp_text, rp_text.get_rect(center=(SCREEN_WIDTH // 2, 120)))
-        upgrades_x, buttons_x, stats_x, upgrades_y = SCREEN_WIDTH // 2 - 220, SCREEN_WIDTH // 2 - 220 + 230, 40, 150
+        upgrades_x, buttons_x, stats_x, upgrades_y = SCREEN_WIDTH // 2 - 220, SCREEN_WIDTH // 2 - 220 + 350, 40, 150
         upgrades = {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
                     'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng',
                     'gold_income': 'Gold Income'}
