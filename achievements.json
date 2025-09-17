@@ -1,0 +1,64 @@
+{
+    "first_win": {
+        "name": "First Victory",
+        "description": "Win your first game.",
+        "unlocked": true,
+        "reward_points": 1000
+    },
+    "clean_wave": {
+        "name": "Flawless Wave",
+        "description": "Kill every enemy in a wave without any escaping.",
+        "unlocked": true,
+        "reward_points": 500
+    },
+    "grunt_slayer": {
+        "name": "Grunt Slayer",
+        "description": "Kill 1,000 Grunts.",
+        "unlocked": false,
+        "progress": 207,
+        "target": 1000,
+        "reward_points": 1000
+    },
+    "boss_hunter": {
+        "name": "Boss Hunter",
+        "description": "Defeat 10 Bosses.",
+        "unlocked": false,
+        "progress": 4,
+        "target": 10,
+        "reward_points": 1500
+    },
+    "master_builder": {
+        "name": "Master Builder",
+        "description": "Build 250 traps.",
+        "unlocked": false,
+        "progress": 5,
+        "target": 250,
+        "reward_points": 100
+    },
+    "ultimate_power": {
+        "name": "Ultimate Power",
+        "description": "Upgrade a trap to its Ultimate level.",
+        "unlocked": true,
+        "reward_points": 750
+    },
+    "combo_master": {
+        "name": "Combo Master",
+        "description": "Achieve a kill combo of 50x.",
+        "unlocked": true,
+        "reward_points": 5000
+    },
+    "millionaire": {
+        "name": "Millionaire",
+        "description": "Earn 1,000,000 gold across all games.",
+        "unlocked": false,
+        "progress": 9809,
+        "target": 1000000,
+        "reward_points": 200
+    },
+    "close_call": {
+        "name": "Close Call",
+        "description": "Win a game with only 1 life remaining.",
+        "unlocked": false,
+        "reward_points": 150
+    }
+}

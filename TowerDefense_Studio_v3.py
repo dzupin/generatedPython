@@ -12,7 +12,7 @@ GRID_WIDTH = SCREEN_WIDTH // GRID_SIZE
 GRID_HEIGHT = (SCREEN_HEIGHT - 100) // GRID_SIZE
 INFO_PANEL_HEIGHT = 100
 FPS = 60
-TOTAL_WAVES = 20  # Increased for a longer game
+TOTAL_WAVES = 20
 BOSS_WAVE_INTERVAL = 5
 STATS_FILE = 'dungeon_stats.json'
 ACHIEVEMENTS_FILE = 'achievements.json'
@@ -61,10 +61,10 @@ class AchievementNotification(pygame.sprite.Sprite):
         self.font = font
         self.image = self.font.render(self.text, True, COLOR_TEXT)
         self.rect = self.image.get_rect(centerx=SCREEN_WIDTH / 2, bottom=0)
-        self.lifespan = 5.0  # Total time on screen
-        self.fade_time = 0.5  # Time to fade in/out
+        self.lifespan = 5.0
+        self.fade_time = 0.5
         self.alpha = 255
-        self.state = "fading_in"  # "fading_in", "visible", "fading_out"
+        self.state = "fading_in"
 
     def update(self, dt):
         self.lifespan -= dt
@@ -93,8 +93,7 @@ class AchievementManager:
 
     def load_achievements(self):
         if not os.path.exists(ACHIEVEMENTS_FILE):
-            # Handle error or create a default file. Here we just print a warning.
-            print(f"Warning: {ACHIEVEMENTS_FILE} not found!")
+            print(f"Warning: {ACHIEVEMENTS_FILE} not found! Achievements will not be loaded or saved.")
             return
         try:
             with open(ACHIEVEMENTS_FILE, 'r') as f:
@@ -103,6 +102,7 @@ class AchievementManager:
             print(f"Error decoding {ACHIEVEMENTS_FILE}. It might be corrupted.")
 
     def save_achievements(self):
+        if not self.achievements: return
         with open(ACHIEVEMENTS_FILE, 'w') as f:
             json.dump(self.achievements, f, indent=4)
 
@@ -126,9 +126,9 @@ class AchievementManager:
             ach = self.achievements[key]
             ach['progress'] = ach.get('progress', 0) + value
             if ach['progress'] >= ach['target']:
-                self.unlock(key)  # This will handle unlocking, rewards, and saving
+                self.unlock(key)
             else:
-                self.save_achievements()  # Save progress even if not unlocked
+                self.save_achievements()
 
 
 # --- Research and Stats Management ---
@@ -620,12 +620,14 @@ class Game:
         self.research = Research()
         self.achievement_manager = AchievementManager(self)
         self.game_state = "main_menu"
+        # --- FIXED: Initialize achievement_notifications here ---
+        self.achievement_notifications = pygame.sprite.Group()
         self.load_assets();
         self.setup_ui()
 
     def load_assets(self):
         self.background_images, self.current_background, self.rank_images = [], None, {}
-        resource_dir = 'resources_TowerDefenseStudio'
+        resource_dir = 'resources_TowerDefenseStudio'  # Assuming assets are in this folder
         for i in range(1, 11):
             try:
                 path = os.path.join(resource_dir, f"background{i:02d}.png")
@@ -668,14 +670,14 @@ class Game:
         self.path_set = set(self.path_list)
         self.enemies, self.traps, self.projectiles = pygame.sprite.Group(), pygame.sprite.Group(), pygame.sprite.Group()
         self.particles, self.floating_texts = pygame.sprite.Group(), pygame.sprite.Group()
-        self.achievement_notifications = pygame.sprite.Group()
+        # --- FIXED: Empty the group instead of creating it ---
+        self.achievement_notifications.empty()
         self.money, self.lives, self.wave = 250, 20, 0
         self.wave_timer, self.wave_in_progress = 10, False
         self.enemies_killed, self.money_earned = 0, 250
         self.combo_count, self.combo_timer, self.max_combo_time = 0, 0, 2.0
         self.selected_trap_type, self.selected_trap_instance = None, None
         self.shockwave_cooldown, self.shockwave_timer = 30.0, 0.0
-        # --- Achievement Tracking Vars ---
         self.enemies_spawned_this_wave, self.enemies_killed_this_wave = 0, 0
         self.total_enemies_escaped, self.highest_combo_this_game = 0, 0
 
@@ -695,7 +697,6 @@ class Game:
         points = (waves * 5) + (self.enemies_killed // 2)
         if victory: points += 100
 
-        # --- Achievement Checks ---
         self.achievement_manager.add_progress('millionaire', self.money_earned)
         if self.highest_combo_this_game >= 50: self.achievement_manager.unlock('combo_master')
         clean_game_bonus = 0
@@ -703,7 +704,7 @@ class Game:
             self.achievement_manager.unlock('first_win')
             if self.lives == 1: self.achievement_manager.unlock('close_call')
             if self.total_enemies_escaped == 0:
-                clean_game_bonus = 250  # Repeatable reward for a perfect game
+                clean_game_bonus = 250
                 points += clean_game_bonus
 
         self.research.data['research_points'] += points
@@ -722,7 +723,6 @@ class Game:
         self.enemies_killed += 1;
         self.enemies_killed_this_wave += 1
 
-        # --- Achievement Progress ---
         if enemy_type == 'grunt':
             self.achievement_manager.add_progress('grunt_slayer', 1)
         elif enemy_type == 'boss':
@@ -885,7 +885,7 @@ class Game:
             if self.wave_timer <= 0: self.start_wave()
         if self.wave_in_progress and not self.enemies:
             if self.enemies_killed_this_wave == self.enemies_spawned_this_wave and self.enemies_spawned_this_wave > 0:
-                self.achievement_manager.unlock('clean_wave')  # Check for flawless wave
+                self.achievement_manager.unlock('clean_wave')
             self.wave_in_progress = False
             if self.wave >= TOTAL_WAVES:
                 self.end_game(True)
@@ -932,7 +932,7 @@ class Game:
             if self.game_state == "paused": self.draw_pause_screen()
         elif self.game_state == "game_over":
             self.draw_end_screen()
-        self.achievement_notifications.draw(self.screen)  # Draw notifications on top of everything
+        self.achievement_notifications.draw(self.screen)
         pygame.display.flip()
 
     def draw_game_screen(self):
@@ -1065,7 +1065,7 @@ class Game:
         box.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         pygame.draw.rect(self.screen, COLOR_UI_BG, box, border_radius=15);
         pygame.draw.rect(self.screen, COLOR_UI_BORDER, box, 3, border_radius=15)
-        y, stats = box.centery - 80, self.last_game_stats
+        y, stats = box.centery - 100, self.last_game_stats
         texts = [f"Waves Survived: {stats['waves']}/{TOTAL_WAVES}", f"Enemies Killed: {stats['kills']}",
                  f"Research Points Earned: +{stats['points']}"]
         if stats['clean_bonus'] > 0:
