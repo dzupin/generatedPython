@@ -3,62 +3,80 @@
         "name": "First Victory",
         "description": "Win your first game.",
         "unlocked": true,
-        "reward_points": 1000
-    },
-    "clean_wave": {
-        "name": "Flawless Wave",
-        "description": "Kill every enemy in a wave without any escaping.",
-        "unlocked": true,
-        "reward_points": 500
+        "reward_points": 100
     },
     "grunt_slayer": {
         "name": "Grunt Slayer",
-        "description": "Kill 1,000 Grunts.",
+        "description": "Kill 500 Grunts.",
         "unlocked": false,
-        "progress": 416,
-        "target": 1000,
-        "reward_points": 1000
+        "target": 500,
+        "progress": 200,
+        "reward_points": 250
     },
     "boss_hunter": {
         "name": "Boss Hunter",
         "description": "Defeat 10 Bosses.",
         "unlocked": false,
-        "progress": 8,
         "target": 10,
-        "reward_points": 1500
+        "progress": 4,
+        "reward_points": 500
     },
     "master_builder": {
         "name": "Master Builder",
-        "description": "Build 250 traps.",
+        "description": "Build 200 traps in total.",
         "unlocked": false,
-        "progress": 7,
-        "target": 250,
-        "reward_points": 100
-    },
-    "ultimate_power": {
-        "name": "Ultimate Power",
-        "description": "Upgrade a trap to its Ultimate level.",
-        "unlocked": true,
-        "reward_points": 750
-    },
-    "combo_master": {
-        "name": "Combo Master",
-        "description": "Achieve a kill combo of 50x.",
-        "unlocked": true,
-        "reward_points": 5000
+        "target": 200,
+        "progress": 5,
+        "reward_points": 200
     },
     "millionaire": {
         "name": "Millionaire",
         "description": "Earn 1,000,000 gold across all games.",
         "unlocked": false,
-        "progress": 20146,
         "target": 1000000,
-        "reward_points": 200
+        "progress": 10084,
+        "reward_points": 1000
+    },
+    "combo_master": {
+        "name": "Combo Master",
+        "description": "Achieve a kill combo of 50 or higher.",
+        "unlocked": true,
+        "reward_points": 300
     },
     "close_call": {
         "name": "Close Call",
         "description": "Win a game with only 1 life remaining.",
         "unlocked": false,
-        "reward_points": 150
+        "reward_points": 250
+    },
+    "clean_wave": {
+        "name": "Clean Wave",
+        "description": "Complete a wave after it starts without any enemies escaping.",
+        "unlocked": true,
+        "reward_points": 50
+    },
+    "ultimate_power": {
+        "name": "Ultimate Power",
+        "description": "Upgrade any trap to its Ultimate level.",
+        "unlocked": true,
+        "reward_points": 500
+    },
+    "clean_game": {
+        "name": "Flawless Game",
+        "description": "Kill every enemy in all waves without any escaping.",
+        "unlocked": true,
+        "reward_points": 5000
+    },
+    "ultimate_spike": {
+        "name": "Ultimate Spike",
+        "description": "Upgrade a spike to its Ultimate level.",
+        "unlocked": true,
+        "reward_points": 750
+    },
+    "ultimate_turret": {
+        "name": "Ultimate Turret",
+        "description": "Upgrade a turret to its Ultimate level.",
+        "unlocked": true,
+        "reward_points": 750
     }
 }

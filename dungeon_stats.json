@@ -1,18 +1,18 @@
 {
-    "research_points": 833,
+    "research_points": 70,
     "stats": {
-        "games_played": 49,
-        "victories": 45,
-        "total_kills": 22833,
-        "rank_victories": 34
+        "games_played": 50,
+        "victories": 46,
+        "total_kills": 23557,
+        "rank_victories": 35
     },
     "upgrades": {
         "spike_damage": 2,
         "spike_health": 6,
         "slow_duration": 2,
-        "slow_health": 16,
-        "turret_damage": 90,
-        "turret_range": 42,
+        "slow_health": 17,
+        "turret_damage": 104,
+        "turret_range": 51,
         "gold_income": 4
     },
     "rank": "Admiral"

@@ -477,8 +477,11 @@ class SpikeTrap(Trap):
     def upgrade(self):
         super().upgrade(); self.damage += 3; self.upgrade_cost += 10
 
+    # --- UPDATED: Unlock specific achievement on ultimate ---
     def on_ultimate(self):
-        self.damage += 10; self.draw()
+        self.damage += 10;
+        self.draw()
+        self.game.achievement_manager.unlock('ultimate_spike')
 
 
 class SlowTrap(Trap):
@@ -553,8 +556,11 @@ class TurretTrap(Trap):
     def upgrade(self):
         super().upgrade(); self.range += 15; self.damage += 2; self.cooldown *= 0.9; self.upgrade_cost += 25
 
+    # --- UPDATED: Unlock specific achievement on ultimate ---
     def on_ultimate(self):
-        self.cooldown *= 0.7; self.draw()
+        self.cooldown *= 0.7;
+        self.draw()
+        self.game.achievement_manager.unlock('ultimate_turret')
 
 
 class GoldMine(Trap):
@@ -622,9 +628,8 @@ class Game:
         self.game_state = "main_menu"
         self.achievement_notifications = pygame.sprite.Group()
         self.load_assets();
-        # --- NEW: Attributes for end screen timing and splash screen view ---
         self.end_screen_timer_start = 0
-        self.last_splash_screen_key = "loss_captain"  # Default image
+        self.last_splash_screen_key = "loss_captain"
         self.setup_ui()
 
     def load_assets(self):
@@ -659,12 +664,10 @@ class Game:
                     self.end_screen_images[key] = None
 
     def setup_ui(self):
-        # Adjusted button positions for the new button
         self.new_game_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 70, 200, 50, "New Game", self.font,
                                       action=self.start_new_game)
         self.research_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2, 200, 50, "Research Lab",
                                       self.font, action=lambda: self.set_state("research_lab"))
-        # --- NEW: Button to show last end game splash screen ---
         self.show_splash_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 70, 200, 50, "Last End Screen",
                                          self.font, action=self.show_previous_splash)
         self.main_menu_button = Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT - 100, 200, 50, "Main Menu", self.font,
@@ -704,6 +707,7 @@ class Game:
     def start_new_game(self):
         self.reset_game(); self.set_state("playing")
 
+    # --- UPDATED: Added logic for "clean_game" achievement ---
     def end_game(self, victory):
         s = self.research.data['stats']
         s['games_played'] += 1;
@@ -726,13 +730,13 @@ class Game:
             if self.total_enemies_escaped == 0:
                 clean_game_bonus = 250
                 points += clean_game_bonus
+                self.achievement_manager.unlock('clean_game')  # Unlock Flawless Game achievement
 
         self.research.data['research_points'] += points
         self.research.save()
         self.last_game_stats = {'waves': waves, 'kills': self.enemies_killed, 'points': points, 'victory': victory,
                                 'clean_bonus': clean_game_bonus}
 
-        # --- NEW: Set timer and store the image key for the splash screen ---
         self.end_screen_timer_start = pygame.time.get_ticks()
         outcome_str = 'victory' if victory else 'loss'
         rank_str = self.research.data['rank'].lower()
@@ -796,7 +800,6 @@ class Game:
     def set_state(self, state):
         self.game_state = state
 
-    # --- NEW: Action for the "Last End Screen" button ---
     def show_previous_splash(self):
         self.set_state("showing_splash")
 
@@ -831,11 +834,11 @@ class Game:
             elif self.game_state == "main_menu":
                 self.new_game_button.check_hover(mouse_pos);
                 self.research_button.check_hover(mouse_pos)
-                self.show_splash_button.check_hover(mouse_pos)  # Check hover for new button
+                self.show_splash_button.check_hover(mouse_pos)
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if self.new_game_button.is_hovered: self.new_game_button.click()
                     if self.research_button.is_hovered: self.research_button.click()
-                    if self.show_splash_button.is_hovered: self.show_splash_button.click()  # Click action for new button
+                    if self.show_splash_button.is_hovered: self.show_splash_button.click()
             elif self.game_state == "research_lab":
                 self.main_menu_button.check_hover(mouse_pos)
                 for btn in self.research_buttons.values(): btn.check_hover(mouse_pos)
@@ -843,13 +846,11 @@ class Game:
                     if self.main_menu_button.is_hovered: self.main_menu_button.click()
                     for btn in self.research_buttons.values():
                         if btn.is_hovered: btn.click()
-            # --- NEW: Event handling for the splash screen view ---
             elif self.game_state == "showing_splash":
                 if event.type == pygame.KEYDOWN or (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1):
                     self.set_state("main_menu")
             elif self.game_state == "game_over":
                 self.main_menu_button.check_hover(mouse_pos)
-                # Only allow clicking the button after the overlay appears
                 if pygame.time.get_ticks() - self.end_screen_timer_start > 5000:
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if self.main_menu_button.is_hovered: self.main_menu_button.click()
@@ -969,7 +970,6 @@ class Game:
         elif self.game_state in ["playing", "paused"]:
             self.draw_game_screen()
             if self.game_state == "paused": self.draw_pause_screen()
-        # --- NEW: Call drawing function for the new splash screen view state ---
         elif self.game_state == "showing_splash":
             self.draw_splash_view_screen()
         elif self.game_state == "game_over":
@@ -999,7 +999,7 @@ class Game:
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)))
         self.new_game_button.draw(self.screen);
         self.research_button.draw(self.screen)
-        self.show_splash_button.draw(self.screen)  # Draw the new button
+        self.show_splash_button.draw(self.screen)
 
     def draw_research_lab(self):
         self.screen.fill(COLOR_UI_BG)
@@ -1097,38 +1097,31 @@ class Game:
         pause_text = self.large_font.render("PAUSED", True, COLOR_TEXT)
         self.screen.blit(pause_text, pause_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)))
 
-    # --- NEW: Drawing function for the splash screen viewer ---
     def draw_splash_view_screen(self):
         splash_image = self.end_screen_images.get(self.last_splash_screen_key)
         if splash_image:
             self.screen.blit(splash_image, (0, 0))
         else:
-            # Fallback if the image is missing
             self.screen.fill(COLOR_UI_BG)
             error_text = self.font.render(f"Image not found: {self.last_splash_screen_key}.png", True, COLOR_TEXT)
             self.screen.blit(error_text, error_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)))
 
-        # Add a hint to return to the main menu
         hint_text = self.font.render("Click or press any key to return", True, COLOR_TEXT)
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40))
-        # Add a semi-transparent background for better text readability
         text_bg_surf = pygame.Surface((hint_rect.width + 20, hint_rect.height + 10), pygame.SRCALPHA)
         text_bg_surf.fill((0, 0, 0, 150))
         self.screen.blit(text_bg_surf, (hint_rect.left - 10, hint_rect.top - 5))
         self.screen.blit(hint_text, hint_rect)
 
-    # --- UPDATED: This function now shows the splash for 5 seconds before the overlay ---
     def draw_end_screen(self):
         background_image = self.end_screen_images.get(self.last_splash_screen_key)
 
         if background_image:
             self.screen.blit(background_image, (0, 0))
         else:
-            # Fallback to a solid color if an image is missing
             fallback_bg_color = COLOR_WIN_BG if self.last_game_stats['victory'] else COLOR_GAME_OVER_BG
             self.screen.fill(fallback_bg_color)
 
-        # Only show the overlay menu after 5 seconds have passed
         elapsed_time = pygame.time.get_ticks() - self.end_screen_timer_start
         if elapsed_time > 5000:
             is_victory = self.last_game_stats['victory']
