@@ -8,17 +8,17 @@
     "grunt_slayer": {
         "name": "Grunt Slayer",
         "description": "Kill 500 Grunts.",
-        "unlocked": false,
+        "unlocked": true,
         "target": 500,
-        "progress": 431,
+        "progress": 500,
         "reward_points": 250
     },
     "boss_hunter": {
         "name": "Boss Hunter",
         "description": "Defeat 10 Bosses.",
-        "unlocked": false,
+        "unlocked": true,
         "target": 10,
-        "progress": 9,
+        "progress": 10,
         "reward_points": 500
     },
     "master_builder": {
@@ -26,7 +26,7 @@
         "description": "Build 200 traps in total.",
         "unlocked": false,
         "target": 200,
-        "progress": 14,
+        "progress": 26,
         "reward_points": 200
     },
     "millionaire": {
@@ -34,7 +34,7 @@
         "description": "Earn 1,000,000 gold across all games.",
         "unlocked": false,
         "target": 1000000,
-        "progress": 18725,
+        "progress": 30529,
         "reward_points": 1000
     },
     "combo_master": {
