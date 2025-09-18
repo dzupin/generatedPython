@@ -1033,7 +1033,7 @@ class Game:
                                                                                                                  center=(
                                                                                                                  SCREEN_WIDTH // 2,
                                                                                                                  120)))
-        upgrades_x, stats_x, upgrades_y = SCREEN_WIDTH - 350, 40, 150
+        upgrades_x, stats_x, upgrades_y = SCREEN_WIDTH - 350, 40, 155
         upgrades = {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
                     'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng',
                     'gold_income': 'Gold Income'}
