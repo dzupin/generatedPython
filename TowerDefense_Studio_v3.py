@@ -651,13 +651,13 @@ class Game:
                                                                                                action=lambda
                                                                                                    k=key: self.research.purchase_upgrade(
                                                                                                    k))
-        self.select_captain_btn = Button(SCREEN_WIDTH // 2 - 200, 480, 120, 40, "Captain", self.small_font,
+        self.select_captain_btn = Button(SCREEN_WIDTH // 2 - 200, 520, 120, 40, "Captain", self.small_font,
                                          lambda: self.research.set_selected_rank("Captain"))
-        self.select_general_btn = Button(SCREEN_WIDTH // 2 - 60, 480, 120, 40, "General", self.small_font,
+        self.select_general_btn = Button(SCREEN_WIDTH // 2 - 60, 520, 120, 40, "General", self.small_font,
                                          lambda: self.research.set_selected_rank("General"))
-        self.select_admiral_btn = Button(SCREEN_WIDTH // 2 + 80, 480, 120, 40, "Admiral", self.small_font,
+        self.select_admiral_btn = Button(SCREEN_WIDTH // 2 + 80, 520, 120, 40, "Admiral", self.small_font,
                                          lambda: self.research.set_selected_rank("Admiral"))
-        self.purchase_armor_btn = Button(SCREEN_WIDTH // 2 - 100, 540, 200, 45, "Buy Armor", self.font,
+        self.purchase_armor_btn = Button(SCREEN_WIDTH // 2 - 100, 580, 200, 45, "Buy Armor", self.font,
                                          self.research.purchase_armor)
 
     def reset_game(self):
@@ -1033,13 +1033,13 @@ class Game:
                                                                                                                  center=(
                                                                                                                  SCREEN_WIDTH // 2,
                                                                                                                  120)))
-        upgrades_x, stats_x, upgrades_y = SCREEN_WIDTH - 300, 40, 150
+        upgrades_x, stats_x, upgrades_y = SCREEN_WIDTH - 350, 40, 150
         upgrades = {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
                     'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng',
                     'gold_income': 'Gold Income'}
         for i, (key, name) in enumerate(upgrades.items()):
             level = self.research.data['upgrades'].get(key, 0); cost = self.research.get_upgrade_cost(
-                key); text = self.font.render(f"{name}: Lvl {level} (Cost: {cost})", True, COLOR_TEXT); self.screen.blit(
+                key); text = self.font.render(f"{name}: Lvl {level} (${cost})", True, COLOR_TEXT); self.screen.blit(
                 text, (upgrades_x, upgrades_y + i * 50)); btn = self.research_buttons[key]; btn.is_enabled = \
             self.research.data['research_points'] >= cost; btn.draw(self.screen)
         stats_y_start = 150; self.screen.blit(self.font.render("Lifetime Stats:", True, COLOR_TEXT),
@@ -1058,7 +1058,7 @@ class Game:
         self.select_captain_btn.draw(self.screen); self.select_general_btn.draw(
             self.screen); self.select_admiral_btn.draw(self.screen)
         if armor_level < 2:
-            cost = self.research.armor_costs[armor_level + 1]; self.purchase_armor_btn.text = f"Buy Armor {armor_level + 1} ({cost} RP)"; self.purchase_armor_btn.is_enabled = \
+            cost = self.research.armor_costs[armor_level + 1]; self.purchase_armor_btn.text = f"Armor {armor_level + 1} ({cost} RP)"; self.purchase_armor_btn.is_enabled = \
             self.research.data['research_points'] >= cost
         else:
             self.purchase_armor_btn.text = "Max Armor"; self.purchase_armor_btn.is_enabled = False

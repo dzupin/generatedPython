@@ -1,5 +1,5 @@
 {
-    "research_points": 1673,
+    "research_points": 1073,
     "stats": {
         "games_played": 52,
         "victories": 48,
@@ -16,10 +16,10 @@
         "gold_income": 4
     },
     "highest_rank": "Admiral",
-    "selected_rank": "Captain",
+    "selected_rank": "Admiral",
     "armor": {
-        "captain": 1,
+        "captain": 2,
         "general": 2,
-        "admiral": 1
+        "admiral": 2
     }
 }
