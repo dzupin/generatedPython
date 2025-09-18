@@ -1,10 +1,10 @@
 {
-    "research_points": 70,
+    "research_points": 882,
     "stats": {
-        "games_played": 50,
-        "victories": 46,
-        "total_kills": 23557,
-        "rank_victories": 35
+        "games_played": 51,
+        "victories": 47,
+        "total_kills": 24281,
+        "rank_victories": 36
     },
     "upgrades": {
         "spike_damage": 2,

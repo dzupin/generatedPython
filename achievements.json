@@ -10,7 +10,7 @@
         "description": "Kill 500 Grunts.",
         "unlocked": false,
         "target": 500,
-        "progress": 200,
+        "progress": 431,
         "reward_points": 250
     },
     "boss_hunter": {
@@ -18,7 +18,7 @@
         "description": "Defeat 10 Bosses.",
         "unlocked": false,
         "target": 10,
-        "progress": 4,
+        "progress": 9,
         "reward_points": 500
     },
     "master_builder": {
@@ -26,7 +26,7 @@
         "description": "Build 200 traps in total.",
         "unlocked": false,
         "target": 200,
-        "progress": 5,
+        "progress": 14,
         "reward_points": 200
     },
     "millionaire": {
@@ -34,7 +34,7 @@
         "description": "Earn 1,000,000 gold across all games.",
         "unlocked": false,
         "target": 1000000,
-        "progress": 10084,
+        "progress": 18725,
         "reward_points": 1000
     },
     "combo_master": {

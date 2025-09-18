@@ -31,6 +31,7 @@ COLOR_ENEMY_BRUTE = (150, 50, 200)
 COLOR_ENEMY_TANK = (50, 120, 50)
 COLOR_ENEMY_SCOUT = (220, 120, 0)
 COLOR_ENEMY_BOSS = (255, 255, 0)
+COLOR_ENEMY_ARTILLERY = (255, 100, 0)
 COLOR_SPIKE_TRAP = (120, 120, 120)
 COLOR_SPIKE_TRAP_ARMED = (180, 180, 180)
 COLOR_SLOW_TRAP = (100, 100, 200)
@@ -39,6 +40,7 @@ COLOR_TURRET_BASE = (80, 80, 90)
 COLOR_TURRET_CANNON = (140, 140, 150)
 COLOR_GOLD_MINE = (255, 223, 0)
 COLOR_PROJECTILE = (255, 200, 0)
+COLOR_ENEMY_PROJECTILE = (255, 50, 50)
 COLOR_RANGE_INDICATOR = (255, 255, 255, 50)
 COLOR_HEALTH_BAR_BG = (180, 0, 0)
 COLOR_HEALTH_BAR_FG = (0, 180, 0)
@@ -265,6 +267,36 @@ class Projectile(pygame.sprite.Sprite):
         self.rect.y += dy / dist * self.speed * dt
 
 
+class EnemyProjectile(pygame.sprite.Sprite):
+    def __init__(self, x, y, target, damage, game):
+        super().__init__()
+        self.game = game
+        self.image = pygame.Surface((10, 10), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, COLOR_ENEMY_PROJECTILE, (5, 5), 5)
+        self.rect = self.image.get_rect(center=(x, y))
+        self.target = target
+        self.damage = damage
+        self.speed = 250
+
+    def update(self, dt):
+        if not self.target.alive():
+            self.kill()
+            return
+
+        dx = self.target.rect.centerx - self.rect.centerx
+        dy = self.target.rect.centery - self.rect.centery
+        dist = math.hypot(dx, dy)
+
+        if dist < 8:
+            self.target.take_damage(self.damage)
+            self.game.create_explosion(self.rect.centerx, self.rect.centery, COLOR_ENEMY_PROJECTILE)
+            self.kill()
+            return
+
+        self.rect.x += dx / dist * self.speed * dt
+        self.rect.y += dy / dist * self.speed * dt
+
+
 class Enemy(pygame.sprite.Sprite):
     enemy_type = "Base"
 
@@ -397,6 +429,57 @@ class Boss(Enemy):
         pygame.draw.rect(self.image, (255, 255, 255), self.image.get_rect(), 3, 8)
 
 
+class Artillery(Enemy):
+    enemy_type = "artillery"
+
+    def __init__(self, path, health, game):
+        super().__init__(path, int(health * 2.5), 1.2, 5, COLOR_ENEMY_ARTILLERY, game, 20)
+        self.attack_range = 160
+        self.turret_damage = 15
+        self.attack_cooldown = 3.0
+        self.attack_timer = 0
+        self.target_turret = None
+        self.draw_enemy()
+
+    def draw_enemy(self):
+        w, h = self.image.get_size()
+        points = [(w // 2, 0), (w, h // 2), (w // 2, h), (0, h // 2)]
+        pygame.draw.polygon(self.image, self.color, points)
+        pygame.draw.polygon(self.image, (255, 255, 255), points, 2)
+
+    def find_target_turret(self):
+        possible_targets = []
+        for trap in self.game.traps:
+            if isinstance(trap, TurretTrap):
+                dist = math.hypot(self.rect.centerx - trap.rect.centerx, self.rect.centery - trap.rect.centery)
+                if dist <= self.attack_range:
+                    possible_targets.append((dist, trap))
+
+        if possible_targets:
+            possible_targets.sort(key=lambda t: t[0])
+            self.target_turret = possible_targets[0][1]
+        else:
+            self.target_turret = None
+
+    def update(self, dt):
+        self.attack_timer -= dt
+
+        if self.target_turret and not self.target_turret.alive():
+            self.target_turret = None
+
+        if not self.target_turret:
+            self.find_target_turret()
+
+        if self.target_turret:
+            if self.attack_timer <= 0:
+                self.game.projectiles.add(
+                    EnemyProjectile(self.rect.centerx, self.rect.centery, self.target_turret, self.turret_damage,
+                                    self.game))
+                self.attack_timer = self.attack_cooldown
+        else:
+            super().update(dt)
+
+
 class Trap(pygame.sprite.Sprite):
     def __init__(self, x, y, cost, upg_cost, max_hp, game):
         super().__init__()
@@ -410,10 +493,16 @@ class Trap(pygame.sprite.Sprite):
         self.total_investment = cost
 
     def take_damage(self, amount):
-        self.health -= amount; self.health = max(0, self.health); self.check_death()
+        self.health -= amount
+        self.health = max(0, self.health)
+        self.game.floating_texts.add(
+            FloatingText(self.rect.centerx, self.rect.top, str(int(amount)), COLOR_DAMAGE_TEXT, self.game.small_font))
+        self.check_death()
 
     def check_death(self):
-        if self.health <= 0: self.kill()
+        if self.health <= 0:
+            self.game.create_explosion(self.rect.centerx, self.rect.centery, COLOR_WALL)
+            self.kill()
 
     def upgrade(self):
         self.total_investment += self.upgrade_cost;
@@ -441,7 +530,7 @@ class SpikeTrap(Trap):
         super().__init__(x, y, 50, 30, 75, game);
         rank_bonus = self.research.get_rank_bonus()
         self.damage_bonus, self.health_bonus = self.research.data['upgrades']['spike_damage'], 1 + (
-                    self.research.data['upgrades']['spike_health'] * 0.1)
+                self.research.data['upgrades']['spike_health'] * 0.1)
         self.max_health = int(self.base_max_health * self.health_bonus * rank_bonus);
         self.health = self.max_health
         self.damage, self.cooldown, self.timer, self.armed = (5 + self.damage_bonus) * rank_bonus, 2.0, 0, True;
@@ -475,9 +564,10 @@ class SpikeTrap(Trap):
                 self.draw()
 
     def upgrade(self):
-        super().upgrade(); self.damage += 3; self.upgrade_cost += 10
+        super().upgrade();
+        self.damage += 3;
+        self.upgrade_cost += 10
 
-    # --- UPDATED: Unlock specific achievement on ultimate ---
     def on_ultimate(self):
         self.damage += 10;
         self.draw()
@@ -489,7 +579,7 @@ class SlowTrap(Trap):
         super().__init__(x, y, 75, 40, 100, game);
         rank_bonus = self.research.get_rank_bonus()
         self.duration_bonus, self.health_bonus = self.research.data['upgrades']['slow_duration'] * 0.25, 1 + (
-                    self.research.data['upgrades']['slow_health'] * 0.1)
+                self.research.data['upgrades']['slow_health'] * 0.1)
         self.max_health = int(self.base_max_health * self.health_bonus * rank_bonus);
         self.health = self.max_health
         self.slow_duration = (3 + self.duration_bonus) * rank_bonus;
@@ -506,10 +596,13 @@ class SlowTrap(Trap):
             if self.rect.colliderect(e.rect): e.slow(self.slow_duration)
 
     def upgrade(self):
-        super().upgrade(); self.slow_duration += 1.5; self.upgrade_cost += 20
+        super().upgrade();
+        self.slow_duration += 1.5;
+        self.upgrade_cost += 20
 
     def on_ultimate(self):
-        self.slow_duration += 3; self.draw()
+        self.slow_duration += 3;
+        self.draw()
 
 
 class TurretTrap(Trap):
@@ -517,7 +610,7 @@ class TurretTrap(Trap):
         super().__init__(x, y, 100, 50, 50, game);
         rank_bonus = self.research.get_rank_bonus()
         self.damage_bonus, self.range_bonus = self.research.data['upgrades']['turret_damage'], \
-        self.research.data['upgrades']['turret_range'] * 10
+            self.research.data['upgrades']['turret_range'] * 10
         self.damage, self.range = (3 + self.damage_bonus) * rank_bonus, (100 + self.range_bonus) * rank_bonus
         self.cooldown, self.timer, self.angle, self.target = 1.0, 0, 0, None;
         self.draw()
@@ -554,9 +647,12 @@ class TurretTrap(Trap):
                 self.timer = self.cooldown
 
     def upgrade(self):
-        super().upgrade(); self.range += 15; self.damage += 2; self.cooldown *= 0.9; self.upgrade_cost += 25
+        super().upgrade();
+        self.range += 15;
+        self.damage += 2;
+        self.cooldown *= 0.9;
+        self.upgrade_cost += 25
 
-    # --- UPDATED: Unlock specific achievement on ultimate ---
     def on_ultimate(self):
         self.cooldown *= 0.7;
         self.draw()
@@ -588,10 +684,13 @@ class GoldMine(Trap):
             self.timer = self.cooldown
 
     def upgrade(self):
-        super().upgrade(); self.income += 3; self.upgrade_cost += 20
+        super().upgrade();
+        self.income += 3;
+        self.upgrade_cost += 20
 
     def on_ultimate(self):
-        self.income += 10; self.draw()
+        self.income += 10;
+        self.draw()
 
 
 class Button:
@@ -649,7 +748,8 @@ class Game:
                 path = os.path.join(resource_dir, f"{rank.lower()}.png")
                 self.rank_images[rank] = pygame.image.load(path).convert_alpha()
             except pygame.error as e:
-                print(f"Warning: Could not load {path}. {e}"); self.rank_images[rank] = None
+                print(f"Warning: Could not load {path}. {e}");
+                self.rank_images[rank] = None
 
         for outcome in ['victory', 'loss']:
             for rank in ['captain', 'general', 'admiral']:
@@ -705,15 +805,16 @@ class Game:
         self.total_enemies_escaped, self.highest_combo_this_game = 0, 0
 
     def start_new_game(self):
-        self.reset_game(); self.set_state("playing")
+        self.reset_game();
+        self.set_state("playing")
 
-    # --- UPDATED: Added logic for "clean_game" achievement ---
     def end_game(self, victory):
         s = self.research.data['stats']
         s['games_played'] += 1;
         s['total_kills'] += self.enemies_killed
         if victory:
-            s['victories'] += 1; s['rank_victories'] += 1
+            s['victories'] += 1;
+            s['rank_victories'] += 1
         else:
             s['rank_victories'] = max(0, s['rank_victories'] - 1)
         self.research.update_rank()
@@ -730,7 +831,7 @@ class Game:
             if self.total_enemies_escaped == 0:
                 clean_game_bonus = 250
                 points += clean_game_bonus
-                self.achievement_manager.unlock('clean_game')  # Unlock Flawless Game achievement
+                self.achievement_manager.unlock('clean_game')
 
         self.research.data['research_points'] += points
         self.research.save()
@@ -828,7 +929,8 @@ class Game:
                     elif event.key == pygame.K_s and self.selected_trap_instance:
                         self.sell_trap(self.selected_trap_instance)
                     elif event.key == pygame.K_SPACE and not self.wave_in_progress:
-                        self.money += 25; self.start_wave()
+                        self.money += 25;
+                        self.start_wave()
                     elif event.key == pygame.K_f and self.shockwave_timer <= 0:
                         self.activate_shockwave()
             elif self.game_state == "main_menu":
@@ -945,13 +1047,27 @@ class Game:
         self.wave_timer = 0
         self.enemies_killed_this_wave, self.enemies_spawned_this_wave = 0, 0
         base_health = 20 + (self.wave - 1) * 8
+
         if self.wave % BOSS_WAVE_INTERVAL == 0:
-            self.enemies.add(Boss(self.path_list, base_health * 15 * (1 + self.wave // BOSS_WAVE_INTERVAL), self))
-            self.enemies_spawned_this_wave = 1
+            enemies_to_spawn = []
+            boss = Boss(self.path_list, base_health * 15 * (1 + self.wave // BOSS_WAVE_INTERVAL), self)
+            enemies_to_spawn.append(boss)
+
+            num_escorts = 2 + (self.wave // BOSS_WAVE_INTERVAL) * 2
+            for _ in range(num_escorts):
+                escort_choice = random.choice([Brute, Tank])
+                enemies_to_spawn.append(escort_choice(self.path_list, base_health, self))
+
+            self.enemies_spawned_this_wave = len(enemies_to_spawn)
+            for i, enemy in enumerate(enemies_to_spawn):
+                enemy.rect.centerx -= i * (GRID_SIZE * 2.0)
+                self.enemies.add(enemy)
             return
+
         enemy_pool = [Grunt]
         if self.wave >= 2: enemy_pool.append(Scout)
         if self.wave >= 4: enemy_pool.append(Brute)
+        if self.wave >= 6: enemy_pool.append(Artillery)
         if self.wave >= 7: enemy_pool.append(Tank)
 
         num_enemies = self.wave * 4 + 5;
@@ -1041,8 +1157,10 @@ class Game:
             for x in range(GRID_WIDTH):
                 rect = pygame.Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE)
                 if self.grid[y][x] == 0:
-                    s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA); s.fill(
-                        (*COLOR_WALL, 180)); self.screen.blit(s, rect.topleft)
+                    s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA);
+                    s.fill(
+                        (*COLOR_WALL, 180));
+                    self.screen.blit(s, rect.topleft)
                 else:
                     if (x, y) in self.path_set: pygame.draw.circle(self.screen, (*COLOR_PATH_INDICATOR, 150),
                                                                    rect.center, GRID_SIZE // 4)
