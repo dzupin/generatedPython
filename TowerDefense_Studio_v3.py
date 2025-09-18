@@ -595,7 +595,7 @@ class Game:
         pygame.init(); self.screen = pygame.display.set_mode(
             (SCREEN_WIDTH, SCREEN_HEIGHT)); pygame.display.set_caption(
             "Dungeon Warfare: Enhanced"); self.clock, self.running = pygame.time.Clock(), True; self.font, self.small_font = pygame.font.SysFont(
-            "Arial", 24), pygame.font.SysFont("Arial", 18); self.damage_font, self.large_font = pygame.font.SysFont(
+            "Arial", 16), pygame.font.SysFont("Arial", 18); self.damage_font, self.large_font = pygame.font.SysFont(
             "Arial", 36, bold=True), pygame.font.SysFont("Arial", 36,
                                                          bold=True); self.research = Research(); self.achievement_manager = AchievementManager(
             self); self.game_state = "main_menu"; self.achievement_notifications = pygame.sprite.Group(); self.load_assets(); self.end_screen_timer_start = 0; self.last_splash_screen_key = "loss_captain"; self.setup_ui()
@@ -651,13 +651,13 @@ class Game:
                                                                                                action=lambda
                                                                                                    k=key: self.research.purchase_upgrade(
                                                                                                    k))
-        self.select_captain_btn = Button(SCREEN_WIDTH // 2 - 200, 520, 120, 40, "Captain", self.small_font,
+        self.select_captain_btn = Button(SCREEN_WIDTH // 2 - 200, 580, 120, 40, "Captain", self.small_font,
                                          lambda: self.research.set_selected_rank("Captain"))
-        self.select_general_btn = Button(SCREEN_WIDTH // 2 - 60, 520, 120, 40, "General", self.small_font,
+        self.select_general_btn = Button(SCREEN_WIDTH // 2 - 60, 580, 120, 40, "General", self.small_font,
                                          lambda: self.research.set_selected_rank("General"))
-        self.select_admiral_btn = Button(SCREEN_WIDTH // 2 + 80, 520, 120, 40, "Admiral", self.small_font,
+        self.select_admiral_btn = Button(SCREEN_WIDTH // 2 + 80, 580, 120, 40, "Admiral", self.small_font,
                                          lambda: self.research.set_selected_rank("Admiral"))
-        self.purchase_armor_btn = Button(SCREEN_WIDTH // 2 - 100, 580, 200, 45, "Buy Armor", self.font,
+        self.purchase_armor_btn = Button(SCREEN_WIDTH // 2 - 100, 630, 200, 45, "Buy Armor", self.font,
                                          self.research.purchase_armor)
 
     def reset_game(self):
@@ -1033,7 +1033,7 @@ class Game:
                                                                                                                  center=(
                                                                                                                  SCREEN_WIDTH // 2,
                                                                                                                  120)))
-        upgrades_x, stats_x, upgrades_y = SCREEN_WIDTH - 350, 40, 155
+        upgrades_x, stats_x, upgrades_y = SCREEN_WIDTH - 250, 40, 155
         upgrades = {'spike_damage': 'Spike Dmg', 'spike_health': 'Spike HP', 'slow_duration': 'Slow Time',
                     'slow_health': 'Slow HP', 'turret_damage': 'Turret Dmg', 'turret_range': 'Turret Rng',
                     'gold_income': 'Gold Income'}
@@ -1044,7 +1044,7 @@ class Game:
             self.research.data['research_points'] >= cost; btn.draw(self.screen)
         stats_y_start = 150; self.screen.blit(self.font.render("Lifetime Stats:", True, COLOR_TEXT),
                                               (stats_x, stats_y_start)); s = self.research.data['stats']; stat_lines = [
-            f"Highest Rank: {self.research.data['highest_rank']}", f"Wins for next Rank: {s['rank_victories']}",
+            f"Rank: {self.research.data['highest_rank']}", f"Next Rank: {s['rank_victories']}",
             f"Total Wins: {s['victories']}", f"Total Kills: {s['total_kills']}",
             f"Games Played: {s['games_played']}"]
         for i, line in enumerate(stat_lines): self.screen.blit(self.font.render(line, True, COLOR_TEXT),
