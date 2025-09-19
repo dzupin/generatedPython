@@ -879,7 +879,7 @@ class Game:
                 if not self.path_list:
                     raise RuntimeError("Failsafe grid generation failed. Pathfinding is critically broken.")
                 break
-
+        # Shockwave cooloff set to 5 seconds
         self.path_set = set(self.path_list)
         self.enemies, self.traps, self.projectiles = pygame.sprite.Group(), pygame.sprite.Group(), pygame.sprite.Group()
         self.particles, self.floating_texts = pygame.sprite.Group(), pygame.sprite.Group()
