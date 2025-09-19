@@ -785,6 +785,7 @@ class Game:
         self.achievement_notifications = pygame.sprite.Group();
         self.load_assets();
         self.end_screen_timer_start = 0;
+        self.game_speed = 1.0  # Initialize game_speed here
         self.setup_ui()
 
     def load_assets(self):
@@ -888,9 +889,14 @@ class Game:
         self.enemies_killed, self.money_earned = 0, 250
         self.combo_count, self.combo_timer, self.max_combo_time = 0, 0, 2.0
         self.selected_trap_type, self.selected_trap_instance = None, None
-        self.shockwave_cooldown, self.shockwave_timer = 30.0, 0.0
+        self.shockwave_cooldown, self.shockwave_timer = 5.0, 0.0
         self.enemies_spawned_this_wave, self.enemies_killed_this_wave = 0, 0
         self.total_enemies_escaped, self.highest_combo_this_game = 0, 0
+        # Speed modification variables
+        self.game_speed = 1.0
+        self.wave_speed_bonus = 0.0
+        self.permanent_speed_bonus = 0.0
+        self.shockwave_uses_this_wave = 0
 
     def start_new_game(self):
         self.reset_game(); self.set_state("playing")
@@ -1151,42 +1157,68 @@ class Game:
             'master_builder', 1)
 
     def activate_shockwave(self):
-        self.shockwave_timer = self.shockwave_cooldown;
-        start_pos = (
-            self.path_list[0][0] * GRID_SIZE, self.path_list[0][1] * GRID_SIZE);
-        self.create_explosion(start_pos[0],
-                              start_pos[1],
-                              COLOR_ULTIMATE,
-                              is_shockwave=True)
-        for enemy in self.enemies: enemy.take_damage(25); enemy.slow(2.0)
+        self.shockwave_timer = self.shockwave_cooldown
+        start_pos = (self.path_list[0][0] * GRID_SIZE, self.path_list[0][1] * GRID_SIZE)
+        self.create_explosion(start_pos[0], start_pos[1], COLOR_ULTIMATE, is_shockwave=True)
+
+        # Speed-up logic
+        self.shockwave_uses_this_wave += 1
+        speed_increment = 0.1  # How much speed to add per use
+
+        # If this is the third use or more, the speed increase is permanent
+        if self.shockwave_uses_this_wave >= 3:
+            self.permanent_speed_bonus += speed_increment
+        else: # Otherwise, it's a temporary bonus for this wave only
+            self.wave_speed_bonus += speed_increment
+
+        # Update the overall game speed
+        self.game_speed = 1.0 + self.permanent_speed_bonus + self.wave_speed_bonus
+
+        # Damage and slow all enemies
+        for enemy in self.enemies:
+            enemy.take_damage(25)
+            enemy.slow(2.0)
 
     def update(self, dt):
-        self.achievement_notifications.update(dt)
-        if self.game_state != "playing": return
-        self.enemies.update(dt);
-        self.traps.update(dt, self);
-        self.projectiles.update(dt);
-        self.particles.update(
-            dt);
-        self.floating_texts.update(dt)
-        if self.shockwave_timer > 0: self.shockwave_timer -= dt
+        # Calculate effective delta time based on game speed
+        effective_dt = dt * self.game_speed
+
+        self.achievement_notifications.update(effective_dt)
+        if self.game_state != "playing":
+            return
+
+        self.enemies.update(effective_dt)
+        self.traps.update(effective_dt, self)
+        self.projectiles.update(effective_dt)
+        self.particles.update(effective_dt)
+        self.floating_texts.update(effective_dt)
+
+        if self.shockwave_timer > 0:
+            self.shockwave_timer -= effective_dt
+
         if self.combo_timer > 0:
-            self.combo_timer -= dt
+            self.combo_timer -= effective_dt
         else:
             self.combo_count = 0
+
         for enemy in list(self.enemies):
             if enemy.path_index >= len(self.path_list) - 1:
-                damage = 1 if not isinstance(enemy, Boss) else 10;
-                self.lives -= damage;
-                self.total_enemies_escaped += 1;
+                damage = 1 if not isinstance(enemy, Boss) else 10
+                self.lives -= damage
+                self.total_enemies_escaped += 1
                 enemy.kill()
-        if self.lives <= 0: self.end_game(False)
+
+        if self.lives <= 0:
+            self.end_game(False)
+
         if not self.wave_in_progress:
-            self.wave_timer -= dt
-            if self.wave_timer <= 0: self.start_wave()
+            self.wave_timer -= effective_dt
+            if self.wave_timer <= 0:
+                self.start_wave()
+
         if self.wave_in_progress and not self.enemies:
-            if self.enemies_killed_this_wave == self.enemies_spawned_this_wave and self.enemies_spawned_this_wave > 0: self.achievement_manager.unlock(
-                'clean_wave')
+            if self.enemies_killed_this_wave == self.enemies_spawned_this_wave and self.enemies_spawned_this_wave > 0:
+                self.achievement_manager.unlock('clean_wave')
             self.wave_in_progress = False
             if self.wave >= TOTAL_WAVES:
                 self.end_game(True)
@@ -1204,6 +1236,12 @@ class Game:
         self.wave_in_progress = True;
         self.wave_timer = 0;
         self.enemies_killed_this_wave, self.enemies_spawned_this_wave = 0, 0;
+
+        # Reset temporary speed bonus and wave-specific shockwave counter
+        self.wave_speed_bonus = 0.0
+        self.shockwave_uses_this_wave = 0
+        self.game_speed = 1.0 + self.permanent_speed_bonus
+
         base_health = 20 + (
                 self.wave - 1) * 8
         if self.wave % BOSS_WAVE_INTERVAL == 0:
@@ -1405,6 +1443,9 @@ class Game:
         self.screen.blit(
             self.font.render(f"Lives: {self.lives}", True, COLOR_TEXT),
             (10, SCREEN_HEIGHT - 50));
+        # Display the current game speed
+        speed_text = f"Speed: {self.game_speed:.1f}x"
+        self.screen.blit(self.font.render(speed_text, True, COLOR_TEXT), (10, SCREEN_HEIGHT - 25))
         self.screen.blit(
             self.font.render(f"Wave: {self.wave}/{TOTAL_WAVES}", True, COLOR_TEXT), (200, SCREEN_HEIGHT - 90))
         if not self.wave_in_progress and self.wave < TOTAL_WAVES: self.screen.blit(

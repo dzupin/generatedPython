@@ -1,9 +1,9 @@
 {
-    "research_points": 673,
+    "research_points": 1543,
     "stats": {
-        "games_played": 55,
-        "victories": 50,
-        "total_kills": 26654,
+        "games_played": 57,
+        "victories": 51,
+        "total_kills": 27454,
         "rank_victories": 38
     },
     "upgrades": {
@@ -22,5 +22,5 @@
         "general": 0,
         "admiral": 0
     },
-    "last_splash_screen_key": "victory_admiral"
+    "last_splash_screen_key": "loss_admiral"
 }

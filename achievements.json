@@ -26,7 +26,7 @@
         "description": "Build 200 traps in total.",
         "unlocked": false,
         "target": 200,
-        "progress": 40,
+        "progress": 49,
         "reward_points": 200
     },
     "millionaire": {
@@ -34,7 +34,7 @@
         "description": "Earn 1,000,000 gold across all games.",
         "unlocked": false,
         "target": 1000000,
-        "progress": 56025,
+        "progress": 67993,
         "reward_points": 1000
     },
     "combo_master": {
