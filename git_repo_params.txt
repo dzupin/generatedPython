@@ -6,13 +6,13 @@ default_directory_location = '/QA/test1'
 #default_directory_location = '/QA/test3'
 
 # Git repository address to be used
-#default_git_repository_string = 'git@test.repo.net:EASYTAT01/EZTRV116QA.git'
-default_git_repository_string = 'git@test.repo.net:EASYTAT01/EZTRV116.git'
+#default_git_repository_string = 'git@test.repo.net:test/test.git'
+default_git_repository_string = 'git@test.repo.net:test/test.git'
 
 # Branch of code repository to be used
 default_branch = 'master'
-#default_branch = 'coverity_20220120'
-#default_branch = 'Endevor_Fixes_Coverity_20200120'
+#default_branch = 'test1'
+#default_branch = 'test2'
 
 # Directory location for cloned repository that is expected by external code
 referenced_directory_location = '/QA/test1'
