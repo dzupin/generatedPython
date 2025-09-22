@@ -2,12 +2,12 @@
 # Set internal directory and Git repository with branch to be used for build
 
 # Expected directory location for cloned repository
-default_directory_location = '/QA/EZTRV116QA'
-#default_directory_location = '/QA/EZTRV116'
+default_directory_location = '/QA/test1'
+#default_directory_location = '/QA/test3'
 
 # Git repository address to be used
-#default_git_repository_string = 'git@github.gwd.broadcom.net:EASYTAT01/EZTRV116QA.git'
-default_git_repository_string = 'git@github.gwd.broadcom.net:EASYTAT01/EZTRV116.git'
+#default_git_repository_string = 'git@test.repo.net:EASYTAT01/EZTRV116QA.git'
+default_git_repository_string = 'git@test.repo.net:EASYTAT01/EZTRV116.git'
 
 # Branch of code repository to be used
 default_branch = 'master'
@@ -15,7 +15,7 @@ default_branch = 'master'
 #default_branch = 'Endevor_Fixes_Coverity_20200120'
 
 # Directory location for cloned repository that is expected by external code
-referenced_directory_location = '/QA/EZTRV116QA'
+referenced_directory_location = '/QA/test1'
 
 # Will determine whether git clone or git update is used when code repo is already present
 overwrite_existing_directory = 'true'
