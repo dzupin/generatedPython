@@ -4,11 +4,14 @@
 # Excellent. Python code is working correctly. Now update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. Don't use any external files (e.g. images) in your enhancements. Provide complete updated code.
 #  Provided Python code is working correctly. Treat this code as starting point. Refactor and update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. For visual enhancements do not use screen shake and also don't use screen overlays.  Don't use  external files for images or sound in your enhancements but feel free to use externally generated files for keeping , progress, score, configuration. etc.  Provide complete updated code.
 
+# /AI/llama.cpp/build/bin/llama-server --no-mmap -ngl 999 --jinja -c 32768 --host 0.0.0.0 --port 5000 -fa 1 --model /AI/models/Qwen3-VL-235B-A22B-Instruct-UD-Q3_K_XL-00001-of-00003.gguf --mmproj /AI/models/Qwen3-VL-235B-A22B-mmproj-BF16.gguf
+
 
 import pygame
 import random
 import math
-
+import json
+import os
 
 # --- CONFIGURATION ---
 WIDTH, HEIGHT = 800, 600
@@ -32,19 +35,21 @@ ENEMY_BULLET_COLOR = (255, 100, 100)
 UFO_COLOR = (200, 200, 255)
 BARRIER_COLOR = (100, 255, 100)
 POWERUP_COLOR = (255, 215, 0)  # Gold
+COMBO_COLOR = (255, 165, 0)  # Orange
 
 # Powerup Types
 POWERUP_RAPID = "RAPID"
 POWERUP_SPREAD = "SPREAD"
 POWERUP_SHIELD = "SHIELD"
+POWERUP_LASER = "LASER"
 
+# New game mechanics
+BONUS_MULTIPLIER = 1.5  # Score multiplier for consecutive levels
+LIVES_PER_LEVEL = 1     # Extra life per level completed
+MAX_COMBO = 15          # Maximum combo value
 
 # --- SPRITE GENERATOR (Procedural Pixel Art) ---
 def create_pixel_art(width, height, color, pattern):
-    """
-    Creates a pygame Surface from a binary pattern list of lists.
-    1 = color, 0 = transparent.
-    """
     surface = pygame.Surface((width, height), pygame.SRCALPHA)
     for y, row in enumerate(pattern):
         for x, val in enumerate(row):
@@ -52,8 +57,7 @@ def create_pixel_art(width, height, color, pattern):
                 pygame.draw.rect(surface, color, (x * 2, y * 2, 2, 2))
     return surface
 
-
-# Define Sprites as Binary Maps
+# Enhanced sprite patterns
 PLAYER_MAP = [
     [0, 0, 0, 1, 1, 1, 0, 0],
     [0, 0, 1, 1, 1, 1, 1, 0],
@@ -114,12 +118,11 @@ SPRITE_ENEMY_2 = create_pixel_art(20, 16, ENEMY_2_COLOR, ENEMY_2_MAP)
 SPRITE_ENEMY_3 = create_pixel_art(20, 16, ENEMY_3_COLOR, ENEMY_3_MAP)
 SPRITE_UFO = create_pixel_art(22, 14, UFO_COLOR, UFO_MAP)
 
-
 # --- AUDIO SYSTEM ---
 class SoundManager:
     def __init__(self):
         pygame.mixer.init(44100, -16, 2, 512)
-        self.channels = [pygame.mixer.Channel(i) for i in range(5)]
+        self.channels = [pygame.mixer.Channel(i) for i in range(6)]
         self.sample_rate = 44100
 
     def create_tone(self, freq, duration, vol=0.3, wave_type='square'):
@@ -161,12 +164,20 @@ class SoundManager:
 
     def play_powerup(self):
         self.channels[4].play(self.create_tone(600, 0.1, 0.2, 'square'))
-        pygame.time.set_timer(pygame.USEREVENT, 100, 1)  # Trigger a second tone
-        pygame.time.set_timer(pygame.USEREVENT, 200, 1)
+        self.channels[5].play(self.create_tone(400, 0.1, 0.2, 'square'))
 
-    def play_combo(self):
-        self.channels[4].play(self.create_tone(1200, 0.05, 0.1, 'square'))
+    def play_combo(self, combo):
+        # Higher pitch for higher combo
+        freq = 600 + (combo * 50)
+        self.channels[4].play(self.create_tone(freq, 0.1, 0.2, 'square'))
 
+    def play_level_up(self):
+        for freq in [400, 800, 1200]:
+            self.channels[4].play(self.create_tone(freq, 0.15, 0.3, 'square'))
+            pygame.time.delay(100)
+
+    def play_laser(self):
+        self.channels[2].play(self.create_tone(1000, 0.05, 0.1, 'square'))
 
 # --- CLASSES ---
 
@@ -194,11 +205,34 @@ class Particle:
             return
         alpha = int(255 * self.life)
         color = (*self.color[:3], alpha) if len(self.color) > 3 else self.color
-        # Simple circle with alpha
         s = pygame.Surface((self.size * 2, self.size * 2), pygame.SRCALPHA)
         pygame.draw.circle(s, color, (self.size, self.size), self.size)
         surface.blit(s, (int(self.x) - self.size, int(self.y) - self.size))
 
+class LaserBeam:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 4
+        self.active = True
+        self.color = (0, 255, 255)
+        self.particles = []
+
+    def update(self):
+        self.active = False  # One-shot laser
+
+    def draw(self, surface):
+        # Draw laser beam
+        pygame.draw.line(surface, self.color, (self.x, self.y), (self.x, 0), self.width)
+
+        # Add particles at the top
+        if random.random() < 0.1:
+            self.particles.append(Particle(self.x, 0, self.color, speed=1))
+
+        for p in self.particles:
+            p.update()
+            p.draw(surface)
+        self.particles = [p for p in self.particles if p.life > 0]
 
 class Bullet:
     def __init__(self, x, y, is_player=False, speed=BULLET_SPEED):
@@ -209,13 +243,18 @@ class Bullet:
         self.rect = pygame.Rect(x - self.width // 2, y, self.width, self.height)
         self.velocity_y = -speed if is_player else ENEMY_BULLET_SPEED
         self.active = True
-        self.trail = []  # For visual trail
+        self.trail = []
+        self.angle = 0
+        self.scale = 1.0
 
     def update(self):
         # Trail effect
         self.trail.append((self.x, self.y))
         if len(self.trail) > 5:
             self.trail.pop(0)
+
+        # Pulsing effect
+        self.scale = 1.0 + 0.1 * math.sin(pygame.time.get_ticks() * 0.05)
 
         self.y += self.velocity_y
         self.rect.topleft = (self.x - self.width // 2, self.y)
@@ -230,48 +269,79 @@ class Bullet:
             pygame.draw.circle(s, (*self.color[:3], alpha), (1, 1), 1)
             surface.blit(s, (int(tx) - 1, int(ty) - 1))
 
-        # Draw main bullet
-        pygame.draw.rect(surface, self.color, self.rect)
-        # Glow
-        pygame.draw.rect(surface, (255, 255, 200), self.rect.inflate(-1, -1))
-
+        # Draw main bullet with scaling
+        scaled_width = int(self.width * self.scale)
+        scaled_height = int(self.height * self.scale)
+        pygame.draw.rect(surface, self.color,
+                         (self.x - scaled_width//2, self.y,
+                          scaled_width, scaled_height))
+        pygame.draw.rect(surface, (255, 255, 200),
+                         (self.x - scaled_width//2 + 1, self.y + 1,
+                          scaled_width - 2, scaled_height - 2))
 
 class PowerUp:
     def __init__(self, x, y):
         self.x, self.y = x, y
-        self.type = random.choice([POWERUP_RAPID, POWERUP_SPREAD, POWERUP_SHIELD])
+        self.type = random.choices(
+            [POWERUP_RAPID, POWERUP_SPREAD, POWERUP_SHIELD, POWERUP_LASER],
+            weights=[0.3, 0.3, 0.3, 0.1],
+            k=1
+        )[0]
         self.width, self.height = 20, 20
         self.rect = pygame.Rect(x, y, self.width, self.height)
         self.active = True
         self.color = POWERUP_COLOR
         self.vy = 2
         self.angle = 0
+        self.pulse = 0
 
     def update(self):
         self.y += self.vy
         self.rect.topleft = (self.x, self.y)
         self.angle += 0.1
+        self.pulse = math.sin(pygame.time.get_ticks() * 0.02) * 2
         if self.y > HEIGHT:
             self.active = False
 
     def draw(self, surface):
-        # Draw a glowing capsule
-        s = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        pygame.draw.ellipse(s, self.color, (0, 0, self.width, self.height))
-        pygame.draw.ellipse(s, (255, 255, 255), (4, 4, self.width - 8, self.height - 8))
+        # Pulsing size
+        scale = 1.0 + self.pulse * 0.1
+        scaled_width = int(self.width * scale)
+        scaled_height = int(self.height * scale)
+
+        s = pygame.Surface((scaled_width, scaled_height), pygame.SRCALPHA)
+
+        # Glowing effect
+        glow_size = 3
+        pygame.draw.ellipse(s, (*self.color[:3], 100),
+                           (glow_size, glow_size, scaled_width - glow_size*2, scaled_height - glow_size*2))
+
+        # Main body
+        pygame.draw.ellipse(s, self.color,
+                           (0, 0, scaled_width, scaled_height))
+
+        # Inner highlight
+        pygame.draw.ellipse(s, (255, 255, 255),
+                           (4, 4, scaled_width - 8, scaled_height - 8))
 
         # Rotate text inside
-        text_map = {POWERUP_RAPID: "R", POWERUP_SPREAD: "S", POWERUP_SHIELD: "H"}
+        text_map = {
+            POWERUP_RAPID: "R",
+            POWERUP_SPREAD: "S",
+            POWERUP_SHIELD: "H",
+            POWERUP_LASER: "L"
+        }
         txt = self.font.render(text_map[self.type], True, (0, 0, 0))
         txt = pygame.transform.rotate(txt, self.angle * 180 / math.pi)
-        s.blit(txt, (self.width // 2 - txt.get_width() // 2, self.height // 2 - txt.get_height() // 2))
+        s.blit(txt, (scaled_width // 2 - txt.get_width() // 2,
+                     scaled_height // 2 - txt.get_height() // 2))
 
-        surface.blit(s, (self.x, self.y))
+        surface.blit(s, (self.x - (scaled_width - self.width) // 2,
+                         self.y - (scaled_height - self.height) // 2))
 
     @property
     def font(self):
-        return pygame.font.SysFont("Arial", 14, bold=True)
-
+        return pygame.font.SysFont("Arial", int(14 * (1 + self.pulse * 0.1)), bold=True)
 
 class Barrier:
     def __init__(self, x, y):
@@ -283,13 +353,13 @@ class Barrier:
         self.segments = []
         self.create_segments()
         self.rect = pygame.Rect(x, y, self.width, self.height)
+        self.hit_effect = 0
 
     def create_segments(self):
         segment_width = 4
         segment_height = 4
         for row in range(self.height // segment_height):
             for col in range(self.width // segment_width):
-                # Create a pattern for the barrier (arches)
                 is_hole = (col % 4 == 1 and row < 3) or (col % 4 == 1 and row > 7)
                 if not is_hole:
                     self.segments.append({
@@ -297,7 +367,8 @@ class Barrier:
                         'y': self.y + row * segment_height,
                         'width': segment_width,
                         'height': segment_height,
-                        'active': True
+                        'active': True,
+                        'health': 3  # Make barriers more durable
                     })
 
     def update(self):
@@ -305,6 +376,10 @@ class Barrier:
         if not active_segments:
             self.active = False
             return
+
+        # Visual hit effect
+        self.hit_effect = max(0, self.hit_effect - 0.1)
+
         # Recalculate bounding box
         min_x = min(s['x'] for s in active_segments)
         min_y = min(s['y'] for s in active_segments)
@@ -315,26 +390,40 @@ class Barrier:
     def take_damage(self, bullet_rect):
         for segment in self.segments:
             if segment['active']:
-                seg_rect = pygame.Rect(segment['x'], segment['y'], segment['width'], segment['height'])
+                seg_rect = pygame.Rect(segment['x'], segment['y'],
+                                      segment['width'], segment['height'])
                 if bullet_rect.colliderect(seg_rect):
-                    segment['active'] = False
+                    segment['health'] -= 1
+                    if segment['health'] <= 0:
+                        segment['active'] = False
+                        self.hit_effect = 5
                     return True
         return False
 
     def draw(self, surface):
         for segment in self.segments:
             if segment['active']:
-                # Gradient effect
-                color = BARRIER_COLOR
-                if segment['y'] % 10 == 0:
-                    color = (150, 255, 150)
-                pygame.draw.rect(surface, color, (segment['x'], segment['y'], segment['width'], segment['height']))
+                # Gradient effect with damage indication
+                if segment['health'] < 3:
+                    color = (255, 255 * (segment['health'] / 3), 100 * (segment['health'] / 3))
+                else:
+                    color = BARRIER_COLOR
+
+                pygame.draw.rect(surface, color,
+                                 (segment['x'], segment['y'],
+                                  segment['width'], segment['height']))
+
+        # Simplified hit effect without alpha
+        if self.hit_effect > 0:
+            # Just draw a slightly different color to indicate hit
+            hit_color = (50, 255, 50)  # Lighter green
+            pygame.draw.rect(surface, hit_color, (self.x, self.y, self.width, self.height))
 
 
 class Player:
     def __init__(self):
         self.x, self.y = WIDTH // 2 - 16, HEIGHT - 60
-        self.width, self.height = 32, 32  # Scaled up
+        self.width, self.height = 32, 32
         self.color = PLAYER_COLOR
         self.bullets = []
         self.last_shot = 0
@@ -343,12 +432,14 @@ class Player:
         self.lives = 3
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
-        # Powerups
+        # Enhanced powerups
         self.powerups = []
         self.shield_active = False
         self.shield_timer = 0
         self.combo = 0
         self.combo_timer = 0
+        self.laser_cooldown = 0
+        self.laser_active = False
 
     def update(self, keys, current_time):
         # Movement
@@ -366,15 +457,32 @@ class Player:
         if self.shield_active and current_time - self.shield_timer > 10000:
             self.shield_active = False
 
+        # Laser cooldown
+        if current_time - self.laser_cooldown > 2000:
+            self.laser_active = False
+
     def shoot(self, game, current_time):
+        if POWERUP_RAPID in self.powerups:
+            self.shoot_delay = 150
+        else:
+            self.shoot_delay = 350
+
         if current_time - self.last_shot > self.shoot_delay:
-            # Check for Spread Shot
+            # Laser powerup
+            if POWERUP_LASER in self.powerups and not self.laser_active:
+                laser = LaserBeam(self.x + self.width // 2, self.y)
+                game.player_bullets.append(laser)
+                self.laser_active = True
+                self.laser_cooldown = current_time
+                game.sound_manager.play_laser()
+                return
+
+            # Spread Shot
             if POWERUP_SPREAD in self.powerups:
                 for angle_offset in [-15, 0, 15]:
                     bx = self.x + self.width // 2
                     by = self.y
                     b = Bullet(bx, by, is_player=True)
-                    # Apply angle to velocity
                     rad = math.radians(angle_offset)
                     b.velocity_y = -BULLET_SPEED * math.cos(rad)
                     b.velocity_x = BULLET_SPEED * math.sin(rad)
@@ -391,17 +499,28 @@ class Player:
     def draw(self, surface):
         # Draw Shield if active
         if self.shield_active:
-            pygame.draw.circle(surface, (100, 255, 255), (self.x + self.width // 2, self.y + self.height // 2),
-                               self.width // 2 + 5, 2)
+            shield_radius = self.width // 2 + 5
+            shield_surface = pygame.Surface((shield_radius*2, shield_radius*2), pygame.SRCALPHA)
+            pygame.draw.circle(shield_surface, (100, 255, 255, 150),
+                              (shield_radius, shield_radius), shield_radius, 2)
+            surface.blit(shield_surface, (self.x + self.width//2 - shield_radius,
+                                         self.y + self.height//2 - shield_radius))
 
         # Draw Sprite (Scaled)
         scaled_sprite = pygame.transform.scale(SPRITE_PLAYER, (self.width, self.height))
         surface.blit(scaled_sprite, (self.x, self.y))
 
-        # Engine Glow
+        # Enhanced Engine Glow
         glow_size = 5 + int(math.sin(pygame.time.get_ticks() * 0.02) * 2)
-        pygame.draw.circle(surface, (255, 200, 0), (self.x + self.width // 2, self.y + self.height), glow_size)
+        glow_color = (255, 200, 0) if not self.laser_active else (0, 255, 255)
+        pygame.draw.circle(surface, glow_color,
+                          (self.x + self.width // 2, self.y + self.height), glow_size)
 
+        # Powerup indicators
+        if POWERUP_LASER in self.powerups:
+            laser_indicator = pygame.Surface((20, 5), pygame.SRCALPHA)
+            pygame.draw.rect(laser_indicator, (0, 255, 255, 150), (0, 0, 20, 5))
+            surface.blit(laser_indicator, (self.x + 5, self.y - 10))
 
 class Invader:
     def __init__(self, x, y, row, col, level):
@@ -424,13 +543,31 @@ class Invader:
             self.color = ENEMY_1_COLOR
             self.score_value = 10
 
-        self.score_value *= level  # Higher score for higher levels
-
+        self.score_value *= level
         self.animation_offset = random.randint(0, 10)
         self.active = True
         self.last_shot_time = 0
         self.shot_cooldown = random.randint(2000, 5000) // level
         self.is_on_cooldown = False
+        self.health = 1  # Base health
+        self.max_health = 1
+
+        # Increase health for higher levels
+        if level > 3:
+            self.max_health = 2
+            self.health = 2
+        if level > 6:
+            self.max_health = 3
+            self.health = 3
+
+        self.rect = pygame.Rect(x, y, self.width, self.height)
+
+    def take_damage(self):
+        self.health -= 1
+        if self.health <= 0:
+            self.active = False
+            return True
+        return False
 
     def draw(self, surface, time):
         # Animation offset (wobble)
@@ -440,9 +577,16 @@ class Invader:
         scaled_sprite = pygame.transform.scale(self.sprite, (self.width + 5, self.height + 5))
         surface.blit(scaled_sprite, (self.x + sine_offset, self.y))
 
+        # Health bar
+        if self.max_health > 1:
+            health_width = self.width * (self.health / self.max_health)
+            pygame.draw.rect(surface, (255, 0, 0),
+                            (self.x + sine_offset, self.y - 5, self.width, 3))
+            pygame.draw.rect(surface, (0, 255, 0),
+                            (self.x + sine_offset, self.y - 5, health_width, 3))
+
         # Update rect for collision (using wobbly position)
         self.rect = pygame.Rect(self.x + sine_offset, self.y, self.width + 5, self.height + 5)
-
 
 class UFO:
     def __init__(self):
@@ -455,12 +599,17 @@ class UFO:
         self.shot_cooldown = random.randint(10000, 20000)
         self.active = True
         self.score_value = 500
-
         self.x = 20
         self.direction = 1
         self.rect = pygame.Rect(0, self.y, self.width, self.height)
+        self.spawn_time = pygame.time.get_ticks()
 
     def update(self):
+        # UFO gets faster over time
+        elapsed = pygame.time.get_ticks() - self.spawn_time
+        speed_multiplier = 1.0 + (elapsed / 10000)  # Speed up over 10 seconds
+        self.speed = 6 * min(speed_multiplier, 2.0)
+
         self.x += self.speed * self.direction
 
         if self.x < 10:
@@ -478,8 +627,28 @@ class UFO:
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, surface):
-        scaled_sprite = pygame.transform.scale(SPRITE_UFO, (self.width, self.height))
-        surface.blit(scaled_sprite, (self.x, self.y))
+        # Flicker effect
+        if (pygame.time.get_ticks() % 200) < 100:
+            scaled_sprite = pygame.transform.scale(SPRITE_UFO, (self.width, self.height))
+            surface.blit(scaled_sprite, (self.x, self.y))
+
+class Star:
+    def __init__(self):
+        self.x = random.randint(0, WIDTH)
+        self.y = random.randint(0, HEIGHT)
+        self.size = random.randint(1, 2)
+        self.speed = random.uniform(0.2, 1.5)
+
+    def update(self):
+        self.y += self.speed
+        if self.y > HEIGHT:
+            self.y = 0
+            self.x = random.randint(0, WIDTH)
+
+    def draw(self, surface):
+        # Simple white stars
+        pygame.draw.circle(surface, (255, 255, 255), (int(self.x), int(self.y)), self.size)
+
 
 
 class Game:
@@ -490,11 +659,12 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 20, bold=True)
         self.large_font = pygame.font.SysFont("Arial", 48, bold=True)
+        self.big_font = pygame.font.SysFont("Arial", 72, bold=True)
         self.sound_manager = SoundManager()
 
         self.state = "START"
         self.score = 0
-        self.high_score = 0
+        self.high_score = self.load_high_score()
         self.level = 1
         self.player = Player()
         self.enemies = []
@@ -503,11 +673,11 @@ class Game:
         self.powerups = []
         self.ufo = None
         self.particles = []
-        self.stars = [Star() for _ in range(80)]
+        self.stars = [Star() for _ in range(120)]
         self.barriers = []
 
         self.enemy_direction = 1
-        self.enemy_move_speed = 2  # Base speed
+        self.enemy_move_speed = 2
         self.enemy_drop_distance = 10
         self.last_enemy_move_time = 0
 
@@ -515,9 +685,24 @@ class Game:
         self.ufo_spawn_interval = random.randint(20000, 40000)
 
         self.screen_shake = 0
+        self.game_over_animation = 0
+        self.victory_animation = 0
+        self.last_combo_display = 0
 
         self.init_enemies()
         self.init_barriers()
+
+    def load_high_score(self):
+        try:
+            with open('highscore.json', 'r') as f:
+                data = json.load(f)
+                return data.get('high_score', 0)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return 0
+
+    def save_high_score(self):
+        with open('highscore.json', 'w') as f:
+            json.dump({'high_score': self.high_score}, f)
 
     def init_enemies(self):
         self.enemies = []
@@ -554,6 +739,8 @@ class Game:
         self.particles = []
         self.ufo = None
         self.state = "PLAYING"
+        self.game_over_animation = 0
+        self.victory_animation = 0
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -566,7 +753,6 @@ class Game:
                 self.player.shoot(self, current_time)
             self.player.update(keys, current_time)
 
-            # Pause
             if keys[pygame.K_p]:
                 self.state = "PAUSE"
         elif self.state == "PAUSE":
@@ -575,7 +761,7 @@ class Game:
             elif keys[pygame.K_ESCAPE]:
                 self.state = "START"
         elif self.state in ["GAMEOVER", "VICTORY"]:
-            if keys[pygame.K_SPACE]:
+            if keys[pygame.K_SPACE] or keys[pygame.K_RETURN]:
                 self.reset_game()
             elif keys[pygame.K_ESCAPE]:
                 self.state = "START"
@@ -597,23 +783,21 @@ class Game:
             if self.ufo and self.ufo.active:
                 self.ufo.update()
                 if random.random() < 0.005:
-                    b = Bullet(self.ufo.x + self.ufo.width // 2, self.ufo.y + self.ufo.height, is_player=False)
+                    b = Bullet(self.ufo.x + self.ufo.width // 2,
+                              self.ufo.y + self.ufo.height, is_player=False)
                     self.enemy_bullets.append(b)
                     self.sound_manager.play_enemy_shoot()
                 if not self.ufo.active:
                     self.ufo = None
 
-            # Enemy Movement (Smooth)
-            # Calculate total movement per frame based on speed
+            # Enemy Movement
             move_step = self.enemy_move_speed * self.enemy_direction
-
             edge_reached = False
             for enemy in self.enemies:
                 if enemy.active:
                     enemy.x += move_step
-                    # Check edges
                     if (enemy.x + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
-                            (enemy.x < 30 and self.enemy_direction == -1):
+                       (enemy.x < 30 and self.enemy_direction == -1):
                         edge_reached = True
                         break
 
@@ -621,7 +805,6 @@ class Game:
                 self.enemy_direction *= -1
                 for enemy in self.enemies:
                     enemy.y += self.enemy_drop_distance
-                    # Adjust x to prevent getting stuck in edge
                     enemy.x += self.enemy_move_speed * self.enemy_direction * 2
 
             # Enemy Shooting
@@ -639,7 +822,8 @@ class Game:
                     selected = random.sample(active_enemies, min(len(active_enemies), bullets_to_add))
                     for enemy in selected:
                         if len(self.enemy_bullets) < MAX_ENEMY_BULLETS:
-                            b = Bullet(enemy.x + enemy.width // 2, enemy.y + enemy.height, is_player=False)
+                            b = Bullet(enemy.x + enemy.width // 2,
+                                     enemy.y + enemy.height, is_player=False)
                             self.enemy_bullets.append(b)
                             enemy.last_shot_time = current_time
                             enemy.is_on_cooldown = True
@@ -666,10 +850,8 @@ class Game:
                 if not p.active:
                     self.powerups.remove(p)
                 else:
-                    # Collision with Player
                     if p.rect.colliderect(self.player.rect):
                         self.player.powerups.append(p.type)
-                        self.player.combo = 0  # Reset combo on pickup? No, keep it.
                         if p.type == POWERUP_SHIELD:
                             self.player.shield_active = True
                             self.player.shield_timer = current_time
@@ -682,38 +864,35 @@ class Game:
                 barrier.update()
 
             # COLLISIONS
-            # 1. Player Bullets vs Enemies
+            # Player Bullets vs Enemies
             for b in self.player_bullets[:]:
                 hit = False
                 for enemy in self.enemies:
                     if enemy.active and b.rect.colliderect(enemy.rect):
-                        enemy.active = False
-                        b.active = False
-                        self.score += enemy.score_value * max(1, self.player.combo)
-                        self.player.combo = min(self.player.combo + 1, 10)
-                        self.player.combo_timer = current_time
-                        self.sound_manager.play_combo()
-                        self.spawn_explosion(enemy.x + enemy.width // 2, enemy.y + enemy.height // 2, enemy.color)
-                        self.sound_manager.play_explosion()
+                        if enemy.take_damage():
+                            b.active = False
+                            self.score += enemy.score_value * max(1, self.player.combo)
+                            self.player.combo = min(self.player.combo + 1, MAX_COMBO)
+                            self.player.combo_timer = current_time
+                            self.sound_manager.play_combo(self.player.combo)
+                            self.spawn_explosion(enemy.x + enemy.width // 2,
+                                                enemy.y + enemy.height // 2, enemy.color)
+                            self.sound_manager.play_explosion()
 
-                        # Chance for Powerup
-                        if random.random() < 0.1:
-                            self.powerups.append(PowerUp(enemy.x, enemy.y))
+                            if random.random() < 0.15:
+                                self.powerups.append(PowerUp(enemy.x, enemy.y))
 
                         hit = True
                         break
 
                 if not hit:
-                    # Bullet vs Barrier
                     for barrier in self.barriers:
                         if barrier.active and barrier.take_damage(b.rect):
                             b.active = False
                             self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
-                            self.sound_manager.play_powerup()  # Reuse small sound
                             break
 
                     if not b.active:
-                        # Bullet vs Enemy Bullet
                         for eb in self.enemy_bullets[:]:
                             if b.rect.colliderect(eb.rect):
                                 b.active = False
@@ -721,7 +900,7 @@ class Game:
                                 self.spawn_explosion(b.x, b.y, (255, 255, 255))
                                 break
 
-            # 2. Enemy Bullets vs Player
+            # Enemy Bullets vs Player
             for b in self.enemy_bullets[:]:
                 if b.rect.colliderect(self.player.rect):
                     b.active = False
@@ -733,7 +912,7 @@ class Game:
                         self.player_hit()
                     break
 
-            # 3. Enemy Bullets vs Barriers
+            # Enemy Bullets vs Barriers
             for b in self.enemy_bullets[:]:
                 for barrier in self.barriers:
                     if barrier.active and barrier.take_damage(b.rect):
@@ -741,7 +920,7 @@ class Game:
                         self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
                         break
 
-            # 4. Enemies vs Player (Game Over)
+            # Enemies vs Player
             for enemy in self.enemies:
                 if enemy.active and enemy.y + enemy.height >= self.player.y:
                     self.player_hit()
@@ -749,14 +928,14 @@ class Game:
                     enemy.active = False
                     break
 
-            # 5. UFO Collision
+            # UFO Collision
             if self.ufo and self.ufo.active:
                 for b in self.player_bullets[:]:
                     if b.active and b.rect.colliderect(self.ufo.rect):
                         b.active = False
-                        self.score += self.ufo.score_value
-                        self.spawn_explosion(self.ufo.x + self.ufo.width // 2, self.ufo.y + self.ufo.height // 2,
-                                             UFO_COLOR)
+                        self.score += self.ufo.score_value * max(1, self.player.combo)
+                        self.spawn_explosion(self.ufo.x + self.ufo.width // 2,
+                                            self.ufo.y + self.ufo.height // 2, UFO_COLOR)
                         self.sound_manager.play_explosion()
                         self.ufo.active = False
                         self.ufo = None
@@ -766,17 +945,18 @@ class Game:
             if not any(e.active for e in self.enemies):
                 self.level += 1
                 self.enemy_move_speed += 1
-                self.init_enemies()
-                self.score += 1000
+                self.player.lives += LIVES_PER_LEVEL
+                self.score += int(1000 * BONUS_MULTIPLIER * self.level)
+                self.sound_manager.play_level_up()
                 self.spawn_explosion(WIDTH // 2, HEIGHT // 2, (255, 255, 255))
-                # Clear powerups on level up? Optional.
+                self.init_enemies()
 
             # Particles
             for p in self.particles:
                 p.update()
             self.particles = [p for p in self.particles if p.life > 0]
 
-            # Screen Shake Decay
+            # Screen Shake
             if self.screen_shake > 0:
                 self.screen_shake -= 0.5
                 if self.screen_shake < 0: self.screen_shake = 0
@@ -790,7 +970,7 @@ class Game:
         self.sound_manager.play_explosion()
         self.player.lives -= 1
         self.player.combo = 0
-        self.player.powerups = []  # Lose powerups on death
+        self.player.powerups = []
         self.player.shield_active = False
         self.screen_shake = 10
 
@@ -798,6 +978,7 @@ class Game:
             self.state = "GAMEOVER"
             if self.score > self.high_score:
                 self.high_score = self.score
+                self.save_high_score()
 
     def draw(self):
         # Screen Shake Effect
@@ -816,7 +997,8 @@ class Game:
         self.screen.blit(bg_surface, shake_offset)
 
         if self.state == "START":
-            self.draw_menu("NEON INVADERS", "Press SPACE to Start", "Arrows: Move | Space: Shoot | P: Pause")
+            self.draw_menu("NEON INVADERS", "Press SPACE to Start",
+                          "Arrows: Move | Space: Shoot | P: Pause | L: Laser (Powerup)")
         elif self.state == "PLAYING":
             self.player.draw(self.screen)
             for barrier in self.barriers:
@@ -838,53 +1020,104 @@ class Game:
 
             # HUD
             self.draw_hud()
+
+            # Combo display
+            if self.player.combo > 0 and pygame.time.get_ticks() - self.last_combo_display < 1000:
+                combo_text = self.big_font.render(f"COMBO x{self.player.combo}", True, COMBO_COLOR)
+                combo_text.set_alpha(int(255 * (1 - (pygame.time.get_ticks() - self.last_combo_display) / 1000)))
+                text_rect = combo_text.get_rect(center=(WIDTH//2, HEIGHT//2 - 100))
+                self.screen.blit(combo_text, text_rect)
         elif self.state == "PAUSE":
             self.draw_menu("PAUSED", "Press P to Resume | ESC to Quit")
-        elif self.state in ["GAMEOVER", "VICTORY"]:
-            title = "GAME OVER" if self.state == "GAMEOVER" else "LEVEL COMPLETE!"
-            color = (255, 50, 50) if self.state == "GAMEOVER" else (50, 255, 50)
-            self.draw_menu(title, f"Score: {self.score}", "High Score: " + str(self.high_score))
+        elif self.state == "GAMEOVER":
+            self.draw_menu("GAME OVER", f"Final Score: {self.score}", "High Score: " + str(self.high_score))
+        elif self.state == "VICTORY":
+            self.draw_menu("STAGE CLEAR", f"Score: {self.score}", "High Score: " + str(self.high_score))
 
-        # Vignette/Overlay
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        # Create a vignette effect
-        radius = WIDTH
-        pygame.draw.circle(overlay, (0, 0, 0, 100), (WIDTH // 2, HEIGHT // 2), radius)
-        self.screen.blit(overlay, (0, 0))
+        # Enhanced Vignette
+        self.draw_vignette()
 
         pygame.display.flip()
 
     def draw_menu(self, title, sub1, sub2=""):
-        title_surf = self.large_font.render(title, True, PLAYER_COLOR)
-        title_rect = title_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60))
+        # Background fade effect
+        bg_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        pygame.draw.rect(bg_surface, (*BG_COLOR[:3], 200), (0, 0, WIDTH, HEIGHT))
+
+        self.screen.blit(bg_surface, (0, 0))
+
+        # Title with glow effect
+        title_surf = self.big_font.render(title, True, PLAYER_COLOR)
+        title_rect = title_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
+
+        # Glow behind text
+        glow = self.big_font.render(title, True, (100, 255, 255))
+        glow.set_alpha(100)
+        glow_rect = glow.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
+        self.screen.blit(glow, glow_rect)
         self.screen.blit(title_surf, title_rect)
 
+        # Subtext
         sub1_surf = self.font.render(sub1, True, TEXT_COLOR)
-        sub1_rect = sub1_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 10))
+        sub1_rect = sub1_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2))
         self.screen.blit(sub1_surf, sub1_rect)
 
         if sub2:
             sub2_surf = self.font.render(sub2, True, (200, 200, 200))
-            sub2_rect = sub2_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 50))
+            sub2_rect = sub2_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 40))
             self.screen.blit(sub2_surf, sub2_rect)
 
     def draw_hud(self):
+        # Score
         score_surf = self.font.render(f"SCORE: {self.score}", True, TEXT_COLOR)
-        lives_surf = self.font.render(f"LIVES: {self.player.lives}", True, TEXT_COLOR)
-        level_surf = self.font.render(f"LEVEL: {self.level}", True, TEXT_COLOR)
-        combo_surf = self.font.render(f"COMBO: x{self.player.combo}", True, (255, 215, 0))
+        score_rect = score_surf.get_rect(topleft=(15, 10))
+        # Glow effect
+        pygame.draw.rect(self.screen, (100, 255, 100, 100), score_rect.inflate(4, 4))
+        self.screen.blit(score_surf, score_rect)
 
+        # Lives
+        lives_surf = self.font.render(f"LIVES: {self.player.lives}", True, TEXT_COLOR)
+        lives_rect = lives_surf.get_rect(topleft=(WIDTH - 160, 10))
+        pygame.draw.rect(self.screen, (255, 100, 100, 100), lives_rect.inflate(4, 4))
+        self.screen.blit(lives_surf, lives_rect)
+
+        # Level
+        level_surf = self.font.render(f"LEVEL: {self.level}", True, TEXT_COLOR)
+        level_rect = level_surf.get_rect(center=(WIDTH // 2, 10))
+        pygame.draw.rect(self.screen, (100, 100, 255, 100), level_rect.inflate(4, 4))
+        self.screen.blit(level_surf, level_rect)
+
+        # Combo
+        combo_surf = self.font.render(f"COMBO: x{self.player.combo}", True, COMBO_COLOR)
+        combo_rect = combo_surf.get_rect(topleft=(15, 35))
+        self.screen.blit(combo_surf, combo_rect)
+
+        # Powerups
         powerup_text = ""
         if POWERUP_RAPID in self.player.powerups: powerup_text += "R "
         if POWERUP_SPREAD in self.player.powerups: powerup_text += "S "
         if self.player.shield_active: powerup_text += "H "
+        if POWERUP_LASER in self.player.powerups: powerup_text += "L "
         pu_surf = self.font.render(f"PU: {powerup_text or '-'}", True, POWERUP_COLOR)
+        pu_rect = pu_surf.get_rect(topleft=(WIDTH - 160, 35))
+        self.screen.blit(pu_surf, pu_rect)
 
-        self.screen.blit(score_surf, (15, 10))
-        self.screen.blit(lives_surf, (WIDTH - 160, 10))
-        self.screen.blit(level_surf, (WIDTH // 2 - 60, 10))
-        self.screen.blit(combo_surf, (15, 35))
-        self.screen.blit(pu_surf, (WIDTH - 160, 35))
+        # Laser cooldown indicator
+        if POWERUP_LASER in self.player.powerups:
+            current_time = pygame.time.get_ticks()
+            cooldown_left = max(0, 2000 - (current_time - self.player.laser_cooldown))
+            cooldown_pct = cooldown_left / 2000
+            cooldown_width = 100 * cooldown_pct
+            pygame.draw.rect(self.screen, (50, 50, 50),
+                            (WIDTH - 150, 60, 100, 10))
+            pygame.draw.rect(self.screen, (0, 255, 255),
+                            (WIDTH - 150, 60, cooldown_width, 10))
+
+    def draw_vignette(self):
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        radius = WIDTH
+        pygame.draw.circle(overlay, (0, 0, 0, 100), (WIDTH // 2, HEIGHT // 2), radius)
+        self.screen.blit(overlay, (0, 0))
 
     def run(self):
         running = True
@@ -893,7 +1126,6 @@ class Game:
                 if event.type == pygame.QUIT:
                     running = False
                 if event.type == pygame.USEREVENT:
-                    # For powerup sound effect sequence
                     self.sound_manager.create_tone(800, 0.05, 0.1, 'square').play()
 
             self.handle_input()
@@ -902,26 +1134,7 @@ class Game:
             self.clock.tick(FPS)
         pygame.quit()
 
-
-class Star:
-    def __init__(self):
-        self.x = random.randint(0, WIDTH)
-        self.y = random.randint(0, HEIGHT)
-        self.size = random.randint(1, 2)
-        self.speed = random.uniform(0.2, 1.5)
-        self.brightness = random.randint(100, 255)
-
-    def update(self):
-        self.y += self.speed
-        if self.y > HEIGHT:
-            self.y = 0
-            self.x = random.randint(0, WIDTH)
-
-    def draw(self, surface):
-        color = (self.brightness, self.brightness, self.brightness)
-        pygame.draw.circle(surface, color, (int(self.x), int(self.y)), self.size)
-
-
 if __name__ == "__main__":
     game = Game()
     game.run()
+
