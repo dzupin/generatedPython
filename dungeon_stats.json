@@ -1,19 +1,19 @@
 {
-    "research_points": 1543,
+    "research_points": 29,
     "stats": {
-        "games_played": 57,
-        "victories": 51,
-        "total_kills": 27454,
-        "rank_victories": 38
+        "games_played": 60,
+        "victories": 54,
+        "total_kills": 29626,
+        "rank_victories": 41
     },
     "upgrades": {
         "spike_damage": 3,
         "spike_health": 6,
         "slow_duration": 4,
         "slow_health": 17,
-        "turret_damage": 108,
+        "turret_damage": 111,
         "turret_range": 51,
-        "gold_income": 4
+        "gold_income": 24
     },
     "highest_rank": "Admiral",
     "selected_rank": "Captain",
@@ -22,5 +22,6 @@
         "general": 0,
         "admiral": 0
     },
-    "last_splash_screen_key": "loss_admiral"
+    "last_splash_screen_key": "loss_admiral",
+    "rank": "Admiral"
 }
