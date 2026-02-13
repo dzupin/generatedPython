@@ -1,6 +1,7 @@
 # PROMPT USED (create game baseline): Write Space Invaders game in python using pygame library.
 # 0 Shot
 # PROMPT FOLLOW UP (game enhancement): Excellent. Python code is working correctly. Now update the code to make game more addictive for end user to play. Make sure that enhancement is visible to end user and therefore more addictive to play but also make sure to keep scope in reasonable level so that update will work correctly.
+# 1 Shot (fix spacebar not shooting bug)
 # /AI/llama.cpp/build/bin/llama-server --no-mmap --jinja --host 0.0.0.0 --port 5000 --ctx-size 65536  -fa 1  --model  /AI/models/stepfun-ai_Step-3.5-Flash-IQ4_XS-00001-of-00003.gguf
 
 
@@ -11,7 +12,6 @@ import random
 # --- Initialization ---
 pygame.init()
 pygame.font.init()
-pygame.mixer.set_num_channels(0)  # Basic audio setup
 
 # Screen Dimensions
 SCREEN_WIDTH = 800
@@ -30,7 +30,7 @@ PURPLE = (255, 0, 255)
 YELLOW = (255, 255, 0)
 ORANGE = (255, 165, 0)
 BLACK = (0, 0, 0)
-DARK_GRAY = (40, 40, 40)
+GRAY = (100, 100, 100)  # DEFINED HERE TO FIX ERROR
 
 
 # --- Helper Functions ---
@@ -103,6 +103,13 @@ class Player(pygame.sprite.Sprite):
             self.rect.x -= self.speed
         if keys[pygame.K_RIGHT] and self.rect.right < SCREEN_WIDTH:
             self.rect.x += self.speed
+
+        # Shooting Logic (FIXED)
+        if keys[pygame.K_SPACE]:
+            bullets = self.shoot()
+            for b in bullets:
+                all_sprites.add(b)
+                bullets_group.add(b)
 
         # Power-up Timers
         if self.power_level > 1:
@@ -261,16 +268,16 @@ def main():
     winner = False
     score = 0
     high_score = 0
-    level = 1
     screen_shake = 0
 
     # Background Stars
     stars = [Star() for _ in range(50)]
 
     # Sprite Groups
+    global all_sprites, bullets_group  # Make global for player access
     all_sprites = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
-    bullets = pygame.sprite.Group()
+    bullets_group = pygame.sprite.Group()
     enemy_bullets = pygame.sprite.Group()
     particles = pygame.sprite.Group()
     powerups = pygame.sprite.Group()
@@ -280,11 +287,12 @@ def main():
 
     def init_level():
         enemies.empty()
-        bullets.empty()
+        bullets_group.empty()
         enemy_bullets.empty()
         powerups.empty()
-        all_sprites.empty()
-        all_sprites.add(player)
+        # Keep player in all_sprites, clear others
+        for enemy in enemies:
+            enemies.remove(enemy)
 
         rows = 4
         cols = 8
@@ -337,13 +345,14 @@ def main():
 
             # Draw static background elements behind game over
             all_sprites.draw(screen)
+            bullets_group.draw(screen)
             powerups.draw(screen)
             pygame.display.flip()
             continue
 
         # --- Updates ---
         player.update()
-        bullets.update()
+        bullets_group.update()
         enemy_bullets.update()
         particles.update()
         powerups.update()
@@ -374,7 +383,7 @@ def main():
             all_sprites.add(b)
 
         # Collision: Player Bullet hits Enemy
-        hits = pygame.sprite.groupcollide(bullets, enemies, True, True)
+        hits = pygame.sprite.groupcollide(bullets_group, enemies, True, True)
         for hit in hits:
             score += 10 * (hits[hit][0].type_score)  # Higher score for harder enemies
             # Explosion
@@ -430,13 +439,13 @@ def main():
 
         # --- Drawing ---
         all_sprites.draw(screen)
+        bullets_group.draw(screen)  # Draw bullets specifically
         powerups.draw(screen)
         particles.draw(screen)
 
         # Draw Player UI
         draw_text(screen, f"SCORE: {score}", 22, WHITE, SCREEN_WIDTH // 2, 10)
-        draw_text(screen, f"HIGH: {max(score, high_score)}", 18, GRAY if 'GRAY' in dir() else WHITE, SCREEN_WIDTH - 100,
-                  15)
+        draw_text(screen, f"HIGH: {max(score, high_score)}", 18, GRAY, SCREEN_WIDTH - 100, 15)
 
         # Lives & Shield
         draw_text(screen, "LIVES:", 20, WHITE, 10, SCREEN_HEIGHT - 35, "left")
