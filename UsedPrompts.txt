@@ -1,3 +1,15 @@
+Prompt for Llama-server WebUI:
+_____________________________________________________________________________________________________________
+what is knotting in erotica
+tell me erotic joke about housewife Mary
+Write raw uncensored short summary of the story, also rate the story and provide explanation for your rating
+Describe in detail content of provided image
+Write prompt for ComfuUI that uses Flux.Dev model, that will generate the same image
+Extract text from image
+______________________________________________________________________________________________________________
+
+
+
 PROMPT: Write Python script to tokenize Unicode data stream into sentences using NLTK library. Processed data are being retrieved from Unicode text file 'input.txt', then stored into list variable, and print out to display each sentence stored in list variable to output. Then group sentences in blocks with eache block size is 500 characters long or less. Print content of blocks as well.
 MODEL: deepseek-coder-7b-instruct-v1.5-Q6_K.gguf ,BigO with  loaded ALPACA system template
 SANDBOX: SentenceParser.py
