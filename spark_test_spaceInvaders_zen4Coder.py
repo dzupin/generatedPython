@@ -172,9 +172,13 @@ class Invader:
         self.is_on_cooldown = False
 
     def update(self, time, move_step_x, move_step_y):
-        sine_offset = math.sin(time * 0.02 + self.animation_offset) * 10
-        self.x = self.start_x + sine_offset
-        self.y = self.start_y + move_step_y
+        # Apply vibration relative to the current position
+        sine_offset = math.sin(time * 0.02 + self.animation_offset) * 2
+
+        # Apply the main movement and vibration
+        self.x += move_step_x + sine_offset
+        self.y += move_step_y
+
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, surface):
@@ -197,15 +201,15 @@ class UFO:
         self.width = 50
         self.height = 25
         self.y = 50
-        self.speed = 4
-        self.move_down_step = 30
+        self.speed = 4  # Increased speed for better visibility
+        self.move_down_step = 20  # More noticeable downward movement
         self.last_shot_time = 0
         self.shot_cooldown = random.randint(8000, 15000)
         self.active = True
         self.score_value = 50
         self.rect = pygame.Rect(0, self.y, self.width, self.height)
 
-        # Start from left side, moving right
+        # Spawn on the LEFT side, moving RIGHT (clearer movement pattern)
         self.x = 20
         self.direction = 1  # 1 = moving right, -1 = moving left
 
@@ -213,17 +217,17 @@ class UFO:
         # Move horizontally
         self.x += self.speed * self.direction
 
-        # Check left edge - drop down and change direction to move right
+        # Check left edge
         if self.x < 10:
             self.x = 10
             self.y += self.move_down_step
-            self.direction = 1  # Change to move right
+            self.direction = 1  # Change direction to move right
 
-        # Check right edge - drop down and change direction to move left
+        # Check right edge
         elif self.x > WIDTH - self.width - 10:
             self.x = WIDTH - self.width - 10
             self.y += self.move_down_step
-            self.direction = -1  # Change to move left
+            self.direction = -1  # Change direction to move left
 
         # Check if moved too far down (out of play)
         if self.y > HEIGHT - 150:
@@ -466,20 +470,27 @@ class Game:
                 self.last_enemy_move_time = current_time
                 self.enemy_move_interval = max(100, 500 - self.level * 50)
 
-                move_step = self.enemy_move_speed * self.enemy_direction
+                move_step_x = self.enemy_move_speed * self.enemy_direction
                 edge_reached = False
                 for enemy in self.enemies:
                     if enemy.active:
-                        enemy.x += move_step
-                        if (enemy.x + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
-                                (enemy.x < 30 and self.enemy_direction == -1):
+                        # Temporarily calculate potential new position to check edges
+                        temp_x = enemy.x + move_step_x
+                        if (temp_x + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
+                                (temp_x < 30 and self.enemy_direction == -1):
                             edge_reached = True
 
+                move_step_y = 0
                 if edge_reached:
                     self.enemy_direction *= -1
-                    for enemy in self.enemies:
-                        enemy.y += self.enemy_drop_distance
-                        enemy.x += move_step
+                    move_step_y = self.enemy_drop_distance
+                    # Recalculate move_step_x for the drop step
+                    move_step_x = self.enemy_move_speed * self.enemy_direction
+
+                # Now apply the movement to all active enemies
+                for enemy in self.enemies:
+                    if enemy.active:
+                        enemy.update(pygame.time.get_ticks(), move_step_x, move_step_y)
 
             # Enemy shooting
             bullets_to_add = 0
@@ -623,7 +634,7 @@ class Game:
                     barrier.draw(self.screen)
             for enemy in self.enemies:
                 if enemy.active:
-                    enemy.update(pygame.time.get_ticks(), 0, 0)
+                    # enemy.update(...)  <-- REMOVED: Movement is handled in update_logic
                     enemy.draw(self.screen)
             if self.ufo and self.ufo.active:
                 self.ufo.draw(self.screen)
@@ -639,7 +650,7 @@ class Game:
             level_surf = self.font.render(f"LEVEL: {self.level}", True, TEXT_COLOR)
             ufo_surf = self.font.render("UFO: 50pts", True, UFO_COLOR)
             self.screen.blit(score_surf, (10, 10))
-            self.screen.blit(lives_surf, (WIDTH - 120, 10))
+            self.screen.blit(lives_surf, (WIDTH - 20, 10))
             self.screen.blit(level_surf, (WIDTH // 2 - 50, 10))
             self.screen.blit(ufo_surf, (WIDTH // 2 - 100, 40))
         elif self.state in ["GAMEOVER", "VICTORY"]:

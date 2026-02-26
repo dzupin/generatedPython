@@ -2,7 +2,21 @@
 
 # Analyze python game code bellow and then modify code to fix movement of ufo enemies that is currently restricted to left half of screen to utilize full width of screen.
 
-# Analyze python game code bellow and then modify code to fix movement of ufo enemies that is currently restricted to left half of screen to utilize full width of screen. To be more specific about problem that needs to be fixed: Ufo enemies are currently moving by very short distance back and forth in horizontal direction and not moving at vertical direction at all. As a result ufo enemies are staying at approximately same position where they have been spawned
+# Analyze python game code bellow and then modify code to fix movement of invaders enemies that is currently restricted to left half of screen to utilize full width of screen. To be more specific about problem that needs to be fixed: Invader enemies are currently moving by very short distance back and forth in horizontal direction and not moving at vertical direction at all. As a result ufo enemies are staying at approximately same position where they have been spawned.
+
+# Analyze python game code bellow and then modify code to fix movement of 28 invader enemies. the regular invaders (not the UFO) are stuck on the left side of the screen and never reach the right side.  the regular invaders looks like they only vibrate in left-right of horizontal direction and not moving to left (or to right) as expected. The barriers on the right remain intact because the invaders never migrate there.
+
+# Analyze python game code bellow and then modify code to fix movement of 28 invader enemies. the regular invaders (not the UFO) are stuck on the left side of the screen and never reach the right side.  the regular invaders looks like they only vibrate in left-right of horizontal direction and not moving to left (or to right) as expected. The barriers on the right remain intact because the invaders never migrate there.  (Check screenshot for additional details, notice that barrier  on right side are never hit by regular invaders because invaders never move to left side of screen)
+
+# Below is a Python pygame implementation of a Space Invaders clone. The game logic for enemy movement is broken: the 28 regular invaders are stuck vibrating horizontally near the left side of the screen and never migrate across to the right side. Consequently, the barriers on the right side of the screen remain completely untouched.
+#
+# Please analyze the Invader class and the Game.update_logic method to identify why the invaders are not moving horizontally across the screen. Then, provide the corrected code to fix this movement issue.
+#
+# The Symptoms:
+#
+#     Invaders move left and right slightly (vibrate) but stay in the same general horizontal area.
+#     They never reach the right edge of the screen.
+#     The "edge reached" logic in update_logic seems to trigger, but the invaders do not actually shift their base position.
 
 
 
