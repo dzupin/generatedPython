@@ -18,7 +18,7 @@
 #     They never reach the right edge of the screen.
 #     The "edge reached" logic in update_logic seems to trigger, but the invaders do not actually shift their base position.
 
-
+# Below is a Python pygame implementation of a Space Invaders clone. The game logic for enemy movement is broken: the 28 regular invaders are stuck vibrating horizontally near the left side of the screen and never migrate across to the right side. Consequently, the barriers on the right side of the screen remain completely untouched.
 
 
 import pygame
