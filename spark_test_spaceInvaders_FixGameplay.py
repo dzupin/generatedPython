@@ -20,6 +20,9 @@
 
 # Below is a Python pygame implementation of a Space Invaders clone. The game logic for enemy movement is broken: the 28 regular invaders are stuck vibrating horizontally near the left side of the screen and never migrate across to the right side. Consequently, the barriers on the right side of the screen remain completely untouched.
 
+# PROMPT FOLLOW UP (game enhancement): Excellent. Python code is working correctly. Now update the code to make game more addictive for end user to play. Make sure that enhancement is noticeable to end user and therefore more addictive to play. Don't use any external files (e.g. images) in your enhancement. Provide complete updated code.
+
+
 
 import pygame
 import random

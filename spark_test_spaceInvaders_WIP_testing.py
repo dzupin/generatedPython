@@ -161,7 +161,6 @@ class Invader:
     def __init__(self, x, y, row, col):
         self.x, self.y = x, y
         self.start_x, self.start_y = x, y
-        self.cumulative_x = 0  # Track horizontal movement
         self.row, self.col = row, col
         self.width, self.height = 30, 20
         self.color = ENEMY_3_COLOR if row == 0 else (ENEMY_2_COLOR if row < 3 else ENEMY_1_COLOR)
@@ -173,12 +172,16 @@ class Invader:
         self.is_on_cooldown = False
 
     def update(self, time, move_step_x, move_step_y):
-        sine_offset = math.sin(time * 0.02 + self.animation_offset) * 10
-        self.x = self.start_x + self.cumulative_x + sine_offset
+        # Animation offset for visual effect (subtle only)
+        sine_offset = math.sin(time * 0.02 + self.animation_offset) * 2
+        self.x = self.start_x + sine_offset
         self.y = self.start_y + move_step_y
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
     def draw(self, surface):
+        # Ensure rect is always current for collision detection
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+
         color = self.color
         surface.fill(color, (self.x + 4, self.y + 4, self.width - 8, self.height - 6))
         surface.fill((0, 0, 0), (self.x + 7, self.y + 7, 4, 4))
@@ -198,39 +201,34 @@ class UFO:
         self.width = 50
         self.height = 25
         self.y = 50
-        self.speed = 4  # Increased speed for better visibility
-        self.move_down_step = 20  # More noticeable downward movement
+        self.speed = 4
+        self.move_down_step = 20
         self.last_shot_time = 0
         self.shot_cooldown = random.randint(8000, 15000)
         self.active = True
         self.score_value = 50
         self.rect = pygame.Rect(0, self.y, self.width, self.height)
 
-        # Spawn on the LEFT side, moving RIGHT (clearer movement pattern)
+        # Spawn on the LEFT side, moving RIGHT
         self.x = 20
-        self.direction = 1  # 1 = moving right, -1 = moving left
+        self.direction = 1
 
     def update(self):
-        # Move horizontally
         self.x += self.speed * self.direction
 
-        # Check left edge
         if self.x < 10:
             self.x = 10
             self.y += self.move_down_step
-            self.direction = 1  # Change direction to move right
+            self.direction = 1
 
-        # Check right edge
         elif self.x > WIDTH - self.width - 10:
             self.x = WIDTH - self.width - 10
             self.y += self.move_down_step
-            self.direction = -1  # Change direction to move left
+            self.direction = -1
 
-        # Check if moved too far down (out of play)
         if self.y > HEIGHT - 150:
             self.active = False
 
-        # Update rect position
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
     def shoot(self, game):
@@ -244,14 +242,10 @@ class UFO:
             game.sound_manager.play_ufo_shoot()
 
     def draw(self, surface):
-        # UFO body (oval)
         pygame.draw.ellipse(surface, UFO_COLOR, (self.x, self.y, self.width, self.height))
-        # Dome
         pygame.draw.circle(surface, (200, 200, 255), (self.x + self.width // 2, self.y + 8), 6)
-        # Lights
         for i in range(3):
             pygame.draw.circle(surface, (255, 0, 0), (self.x + 10 + i * 12, self.y + self.height - 4), 2)
-        # Legs
         pygame.draw.line(surface, UFO_COLOR, (self.x + 10, self.y + self.height),
                          (self.x + 10, self.y + self.height + 4), 2)
         pygame.draw.line(surface, UFO_COLOR, (self.x + 25, self.y + self.height),
@@ -367,7 +361,7 @@ class Game:
         self.ufo = None
         self.particles = []
         self.stars = [Star() for _ in range(100)]
-        self.barriers = []  # Fixed: was "barrriers"
+        self.barrriers = []
         self.enemy_direction = 1
         self.enemy_move_speed = 10
         self.enemy_drop_distance = 20
@@ -386,18 +380,16 @@ class Game:
             for col in range(NUM_ENEMIES_COLS):
                 x = start_x + col * (35 + padding_x)
                 y = start_y + row * (35 + padding_y)
-                invader = Invader(x, y, row, col)
-                invader.cumulative_x = 0  # Reset cumulative movement
-                self.enemies.append(invader)
+                self.enemies.append(Invader(x, y, row, col))
         self.enemy_move_speed = 8 + (self.level * 1.5)
 
     def init_barriers(self):
-        self.barriers = []  # Fixed: consistent naming
+        self.barrriers = []
         barrier_spacing = WIDTH // (MAX_BARRIERS + 1)
         for i in range(MAX_BARRIERS):
             barrier_x = barrier_spacing * (i + 1) - 30
             barrier_y = HEIGHT - 150
-            self.barriers.append(Barrier(barrier_x, barrier_y))
+            self.barrriers.append(Barrier(barrier_x, barrier_y))
 
     def spawn_explosion(self, x, y, color):
         for _ in range(15):
@@ -456,9 +448,7 @@ class Game:
 
             # UFO Movement and Shooting
             if self.ufo and self.ufo.active:
-                # UPDATE UFO POSITION EVERY FRAME
                 self.ufo.update()
-                # UFO shoots occasionally
                 if random.random() < 0.01:
                     self.ufo.shoot(self)
                 if not self.ufo.active:
@@ -471,22 +461,31 @@ class Game:
 
                 move_step = self.enemy_move_speed * self.enemy_direction
                 edge_reached = False
+
+                # First, check if any enemy would go out of bounds
                 for enemy in self.enemies:
                     if enemy.active:
-                        test_x = enemy.start_x + enemy.cumulative_x + move_step
-                        if (test_x + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
-                                (test_x < 30 and self.enemy_direction == -1):
+                        if (enemy.x + move_step + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
+                                (enemy.x + move_step < 30 and self.enemy_direction == -1):
                             edge_reached = True
+                            break
 
+                # Apply horizontal movement
+                for enemy in self.enemies:
+                    if enemy.active:
+                        enemy.x += move_step
+
+                # If edge reached, drop down and reverse direction
                 if edge_reached:
                     self.enemy_direction *= -1
                     for enemy in self.enemies:
-                        enemy.cumulative_x = 0  # Reset movement
-                        enemy.y += self.enemy_drop_distance
-                else:
-                    for enemy in self.enemies:
                         if enemy.active:
-                            enemy.cumulative_x += move_step  # Track horizontal movement
+                            enemy.y += self.enemy_drop_distance
+                            # Adjust x position to prevent getting stuck at edge
+                            if self.enemy_direction == 1:
+                                enemy.x = max(enemy.x, 30)
+                            else:
+                                enemy.x = min(enemy.x, WIDTH - enemy.width - 30)
 
             # Enemy shooting
             bullets_to_add = 0
@@ -517,7 +516,7 @@ class Game:
                     enemy.is_on_cooldown = False
 
             # Update barriers
-            for barrier in self.barriers:  # Fixed: consistent naming
+            for barrier in self.barrriers:
                 barrier.update()
 
             # COLLISIONS
@@ -537,7 +536,7 @@ class Game:
                 if hit:
                     continue
                 # Bullet vs Barrier
-                for barrier in self.barriers:  # Fixed: consistent naming
+                for barrier in self.barrriers:
                     if barrier.active and barrier.take_damage(b.rect):
                         b.active = False
                         self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
@@ -561,7 +560,7 @@ class Game:
 
             # 3. Enemy Bullets vs Barriers
             for b in self.enemy_bullets[:]:
-                for barrier in self.barriers:  # Fixed: consistent naming
+                for barrier in self.barrriers:
                     if barrier.active and barrier.take_damage(b.rect):
                         b.active = False
                         self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
@@ -625,12 +624,12 @@ class Game:
             self.draw_center_text("Protect yourself behind barriers!", self.font, (150, 150, 150), 120)
         elif self.state == "PLAYING":
             self.player.draw(self.screen)
-            for barrier in self.barriers:  # Fixed: consistent naming
+            for barrier in self.barrriers:
                 if barrier.active:
                     barrier.draw(self.screen)
             for enemy in self.enemies:
                 if enemy.active:
-                    enemy.update(pygame.time.get_ticks(), 0, 0)  # Movement already tracked
+                    # Fix: Use static positions, don't call update() here
                     enemy.draw(self.screen)
             if self.ufo and self.ufo.active:
                 self.ufo.draw(self.screen)
@@ -646,7 +645,7 @@ class Game:
             level_surf = self.font.render(f"LEVEL: {self.level}", True, TEXT_COLOR)
             ufo_surf = self.font.render("UFO: 50pts", True, UFO_COLOR)
             self.screen.blit(score_surf, (10, 10))
-            self.screen.blit(lives_surf, (WIDTH - 120, 10))  # Fixed: was "WIDTH 120"
+            self.screen.blit(lives_surf, (WIDTH - 120, 10))  # Fixed typo: WIDTH 120 -> WIDTH - 120
             self.screen.blit(level_surf, (WIDTH // 2 - 50, 10))
             self.screen.blit(ufo_surf, (WIDTH // 2 - 100, 40))
         elif self.state in ["GAMEOVER", "VICTORY"]:
