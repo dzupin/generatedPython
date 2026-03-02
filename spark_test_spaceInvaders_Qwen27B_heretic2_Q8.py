@@ -1,27 +1,7 @@
 # PROMPT USED (create game baseline): Write Space Invaders game in python using pygame library, make it visually appealing but don't use any external files (e.g. for graphic).
-
-# Analyze python game code bellow and then modify code to fix movement of ufo enemies that is currently restricted to left half of screen to utilize full width of screen.
-
-# Analyze python game code bellow and then modify code to fix movement of invaders enemies that is currently restricted to left half of screen to utilize full width of screen. To be more specific about problem that needs to be fixed: Invader enemies are currently moving by very short distance back and forth in horizontal direction and not moving at vertical direction at all. As a result ufo enemies are staying at approximately same position where they have been spawned.
-
-# Analyze python game code bellow and then modify code to fix movement of 28 invader enemies. the regular invaders (not the UFO) are stuck on the left side of the screen and never reach the right side.  the regular invaders looks like they only vibrate in left-right of horizontal direction and not moving to left (or to right) as expected. The barriers on the right remain intact because the invaders never migrate there.
-
-# Analyze python game code bellow and then modify code to fix movement of 28 invader enemies. the regular invaders (not the UFO) are stuck on the left side of the screen and never reach the right side.  the regular invaders looks like they only vibrate in left-right of horizontal direction and not moving to left (or to right) as expected. The barriers on the right remain intact because the invaders never migrate there.  (Check screenshot for additional details, notice that barrier  on right side are never hit by regular invaders because invaders never move to left side of screen)
-
-# Below is a Python pygame implementation of a Space Invaders clone. The game logic for enemy movement is broken: the 28 regular invaders are stuck vibrating horizontally near the left side of the screen and never migrate across to the right side. Consequently, the barriers on the right side of the screen remain completely untouched.
-#
-# Please analyze the Invader class and the Game.update_logic method to identify why the invaders are not moving horizontally across the screen. Then, provide the corrected code to fix this movement issue.
-#
-# The Symptoms:
-#
-#     Invaders move left and right slightly (vibrate) but stay in the same general horizontal area.
-#     They never reach the right edge of the screen.
-#     The "edge reached" logic in update_logic seems to trigger, but the invaders do not actually shift their base position.
-
-# Below is a Python pygame implementation of a Space Invaders clone. The game logic for enemy movement is broken: the 28 regular invaders are stuck vibrating horizontally near the left side of the screen and never migrate across to the right side. Consequently, the barriers on the right side of the screen remain completely untouched.
-
+# 0-shot  (best visuals for this game so far)
 # PROMPT FOLLOW UP (game enhancement): Excellent. Python code is working correctly. Now update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. Don't use any external files (e.g. images) in your enhancements. Provide complete updated code.
-
+# /AI/llama.cpp/build/bin/llama-server --no-mmap -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1  --model /AI/models/Qwen3.5-27B-heretic-v2-Q8_0.gguf  --mmproj /AI/models/Qwen3.5-27B-mmproj-F32.gguf
 
 import pygame
 import random
@@ -178,7 +158,6 @@ class Bullet:
 
 class Invader:
     def __init__(self, x, y, row, col):
-        self.x, self.y = x, y
         self.start_x, self.start_y = x, y
         self.row, self.col = row, col
         self.width, self.height = 30, 20
@@ -189,26 +168,43 @@ class Invader:
         self.last_shot_time = 0
         self.shot_cooldown = random.randint(3000, 6000)
         self.is_on_cooldown = False
+        # Base position for grid movement
+        self.base_x = x
+        self.base_y = y
+        self.rect = pygame.Rect(self.base_x, self.base_y, self.width, self.height)
 
-    def update(self, time, move_step_x, move_step_y):
-        sine_offset = math.sin(time * 0.02 + self.animation_offset) * 10
-        self.x = self.start_x + sine_offset
-        self.y = self.start_y + move_step_y
-        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+    def update(self, current_time):
+        # Calculate visual wobble based on time
+        sine_offset = math.sin(current_time * 0.02 + self.animation_offset) * 10
+
+        # Visual position is base position + wobble
+        visual_x = self.base_x + sine_offset
+        visual_y = self.base_y
+
+        self.rect.topleft = (int(visual_x), int(visual_y))
+
+        # Store visual coordinates for drawing logic if needed,
+        # but rect is the primary source of truth for collisions
+        self.x = visual_x
+        self.y = visual_y
 
     def draw(self, surface):
         color = self.color
-        surface.fill(color, (self.x + 4, self.y + 4, self.width - 8, self.height - 6))
-        surface.fill((0, 0, 0), (self.x + 7, self.y + 7, 4, 4))
-        surface.fill((0, 0, 0), (self.x + self.width - 11, self.y + 7, 4, 4))
+        # Use the rect for drawing coordinates to ensure sync
+        # Note: rect x/y are ints, self.x/y are floats
+        px, py = int(self.rect.x), int(self.rect.y)
+
+        surface.fill(color, (px + 4, py + 4, self.width - 8, self.height - 6))
+        surface.fill((0, 0, 0), (px + 7, py + 7, 4, 4))
+        surface.fill((0, 0, 0), (px + self.width - 11, py + 7, 4, 4))
         if (self.row % 2 == 0):
-            surface.fill(color, (self.x, self.y + 8, 4, 8))
-            surface.fill(color, (self.x + self.width - 4, self.y + 8, 4, 8))
-            surface.fill(color, (self.x + 4, self.y + self.height - 4, 6, 4))
-            surface.fill(color, (self.x + self.width - 10, self.y + self.height - 4, 6, 4))
+            surface.fill(color, (px, py + 8, 4, 8))
+            surface.fill(color, (px + self.width - 4, py + 8, 4, 8))
+            surface.fill(color, (px + 4, py + self.height - 4, 6, 4))
+            surface.fill(color, (px + self.width - 10, py + self.height - 4, 6, 4))
         else:
-            surface.fill(color, (self.x - 2, self.y + 6, 6, 4))
-            surface.fill(color, (self.x + self.width - 4, self.y + 6, 6, 4))
+            surface.fill(color, (px - 2, py + 6, 6, 4))
+            surface.fill(color, (px + self.width - 4, py + 6, 6, 4))
 
 
 class UFO:
@@ -216,39 +212,32 @@ class UFO:
         self.width = 50
         self.height = 25
         self.y = 50
-        self.speed = 4  # Increased speed for better visibility
-        self.move_down_step = 20  # More noticeable downward movement
+        self.speed = 4
+        self.move_down_step = 20
         self.last_shot_time = 0
         self.shot_cooldown = random.randint(8000, 15000)
         self.active = True
         self.score_value = 50
         self.rect = pygame.Rect(0, self.y, self.width, self.height)
 
-        # Spawn on the LEFT side, moving RIGHT (clearer movement pattern)
         self.x = 20
-        self.direction = 1  # 1 = moving right, -1 = moving left
+        self.direction = 1
 
     def update(self):
-        # Move horizontally
         self.x += self.speed * self.direction
 
-        # Check left edge
         if self.x < 10:
             self.x = 10
             self.y += self.move_down_step
-            self.direction = 1  # Change direction to move right
-
-        # Check right edge
+            self.direction = 1
         elif self.x > WIDTH - self.width - 10:
             self.x = WIDTH - self.width - 10
             self.y += self.move_down_step
-            self.direction = -1  # Change direction to move left
+            self.direction = -1
 
-        # Check if moved too far down (out of play)
         if self.y > HEIGHT - 150:
             self.active = False
 
-        # Update rect position
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
     def shoot(self, game):
@@ -262,20 +251,16 @@ class UFO:
             game.sound_manager.play_ufo_shoot()
 
     def draw(self, surface):
-        # UFO body (oval)
         pygame.draw.ellipse(surface, UFO_COLOR, (self.x, self.y, self.width, self.height))
-        # Dome
-        pygame.draw.circle(surface, (200, 200, 255), (self.x + self.width // 2, self.y + 8), 6)
-        # Lights
+        pygame.draw.circle(surface, (200, 200, 255), (int(self.x + self.width // 2), int(self.y + 8)), 6)
         for i in range(3):
-            pygame.draw.circle(surface, (255, 0, 0), (self.x + 10 + i * 12, self.y + self.height - 4), 2)
-        # Legs
-        pygame.draw.line(surface, UFO_COLOR, (self.x + 10, self.y + self.height),
-                         (self.x + 10, self.y + self.height + 4), 2)
-        pygame.draw.line(surface, UFO_COLOR, (self.x + 25, self.y + self.height),
-                         (self.x + 25, self.y + self.height + 4), 2)
-        pygame.draw.line(surface, UFO_COLOR, (self.x + 40, self.y + self.height),
-                         (self.x + 40, self.y + self.height + 4), 2)
+            pygame.draw.circle(surface, (255, 0, 0), (int(self.x + 10 + i * 12), int(self.y + self.height - 4)), 2)
+        pygame.draw.line(surface, UFO_COLOR, (int(self.x + 10), int(self.y + self.height)),
+                         (int(self.x + 10), int(self.y + self.height + 4)), 2)
+        pygame.draw.line(surface, UFO_COLOR, (int(self.x + 25), int(self.y + self.height)),
+                         (int(self.x + 25), int(self.y + self.height + 4)), 2)
+        pygame.draw.line(surface, UFO_COLOR, (int(self.x + 40), int(self.y + self.height)),
+                         (int(self.x + 40), int(self.y + self.height + 4)), 2)
 
 
 class Barrier:
@@ -362,7 +347,8 @@ class Player:
             (self.x, self.y + self.height)
         ])
         glow_size = 5 + int(math.sin(current_time * 0.03) * 3)
-        pygame.draw.circle(surface, (255, 255, 100), (self.x + self.width // 2, self.y + self.height), glow_size)
+        pygame.draw.circle(surface, (255, 255, 100), (int(self.x + self.width // 2), int(self.y + self.height)),
+                           glow_size)
 
 
 class Game:
@@ -472,33 +458,40 @@ class Game:
 
             # UFO Movement and Shooting
             if self.ufo and self.ufo.active:
-                # UPDATE UFO POSITION EVERY FRAME
                 self.ufo.update()
-                # UFO shoots occasionally
                 if random.random() < 0.01:
                     self.ufo.shoot(self)
                 if not self.ufo.active:
                     self.ufo = None
 
-            # Enemy movement with fixed interval
+            # Enemy movement logic
             if current_time - self.last_enemy_move_time > self.enemy_move_interval:
                 self.last_enemy_move_time = current_time
                 self.enemy_move_interval = max(100, 500 - self.level * 50)
 
                 move_step = self.enemy_move_speed * self.enemy_direction
                 edge_reached = False
+
+                # Check edges based on base positions
                 for enemy in self.enemies:
                     if enemy.active:
-                        enemy.x += move_step
-                        if (enemy.x + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
-                                (enemy.x < 30 and self.enemy_direction == -1):
+                        if (enemy.base_x + enemy.width > WIDTH - 30 and self.enemy_direction == 1) or \
+                                (enemy.base_x < 30 and self.enemy_direction == -1):
                             edge_reached = True
+                            break
 
                 if edge_reached:
                     self.enemy_direction *= -1
+                    move_step = self.enemy_move_speed * self.enemy_direction
+
                     for enemy in self.enemies:
-                        enemy.y += self.enemy_drop_distance
-                        enemy.x += move_step
+                        if enemy.active:
+                            enemy.base_y += self.enemy_drop_distance
+                            enemy.base_x += move_step
+                else:
+                    for enemy in self.enemies:
+                        if enemy.active:
+                            enemy.base_x += move_step
 
             # Enemy shooting
             bullets_to_add = 0
@@ -515,8 +508,9 @@ class Game:
                     selected_enemies = random.sample(active_enemies, min(len(active_enemies), bullets_to_add))
                     for enemy in selected_enemies:
                         if len(self.enemy_bullets) < MAX_ENEMY_BULLETS:
-                            bullet_x = enemy.x + enemy.width // 2
-                            bullet_y = enemy.y + enemy.height
+                            # Use base_x for bullet spawn center
+                            bullet_x = enemy.base_x + enemy.width // 2
+                            bullet_y = enemy.base_y + enemy.height
                             bullet = Bullet(bullet_x, bullet_y, is_player=False)
                             self.enemy_bullets.append(bullet)
                             enemy.last_shot_time = current_time
@@ -541,7 +535,8 @@ class Game:
                         enemy.active = False
                         b.active = False
                         self.score += enemy.score_value
-                        self.spawn_explosion(enemy.x + enemy.width // 2, enemy.y + enemy.height // 2, enemy.color)
+                        self.spawn_explosion(enemy.base_x + enemy.width // 2, enemy.base_y + enemy.height // 2,
+                                             enemy.color)
                         self.sound_manager.play_explosion()
                         hit = True
                         break
@@ -582,9 +577,9 @@ class Game:
 
             # 4. Enemies vs Player
             for enemy in self.enemies:
-                if enemy.active and enemy.y + enemy.height >= self.player.y:
+                if enemy.active and enemy.base_y + enemy.height >= self.player.y:
                     self.player_hit()
-                    self.spawn_explosion(enemy.x, enemy.y, enemy.color)
+                    self.spawn_explosion(enemy.base_x, enemy.base_y, enemy.color)
                     enemy.active = False
                     break
 
@@ -642,7 +637,7 @@ class Game:
                     barrier.draw(self.screen)
             for enemy in self.enemies:
                 if enemy.active:
-                    enemy.update(pygame.time.get_ticks(), 0, 0)
+                    enemy.update(pygame.time.get_ticks())
                     enemy.draw(self.screen)
             if self.ufo and self.ufo.active:
                 self.ufo.draw(self.screen)
