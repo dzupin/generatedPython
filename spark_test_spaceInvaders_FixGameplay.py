@@ -22,6 +22,7 @@
 
 # PROMPT FOLLOW UP (game enhancement): Excellent. Python code is working correctly. Now update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. Don't use any external files (e.g. images) in your enhancements. Provide complete updated code.
 
+#  Another FOLLOW UP:  Excellent. Python code is working correctly. Now update the code to make game much more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. Please make game more rewarding for user to play by introducing various bonuses and game statistics showing progress and improvements to keep user engaged.  Don't use any external files (e.g. images) in your enhancements. If possible avoid screen shaking, or excessive blinking on the screen. But I want internal python generated images of enemy ufo, spaceship, etc. to get significant visual upgrade (more detailed and more pleasing to look at). Also consider adding some gui elements to the game. This is significant refactoring and update therefore don't hesitate to drop existing functionality if new update have better alternative.
 
 import pygame
 import random

@@ -7,7 +7,6 @@
 import pygame
 import random
 import math
-import sys
 
 # --- CONFIGURATION ---
 WIDTH, HEIGHT = 800, 600
