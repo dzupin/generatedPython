@@ -869,7 +869,8 @@ class Game:
         self.screen.blit(s, (0, 0))
 
         # --- LEFT: SCORE ---
-        score_surf = self.large_font.render(f"SCORE: {self.score}", True, TEXT_COLOR)
+        # FIX: Use self.font instead of self.large_font to match HUD size
+        score_surf = self.font.render(f"SCORE: {self.score}", True, TEXT_COLOR)
         self.screen.blit(score_surf, (15, 10))
 
         # --- CENTER: POWERUPS ---
