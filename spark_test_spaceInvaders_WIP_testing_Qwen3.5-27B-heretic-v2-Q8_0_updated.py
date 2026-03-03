@@ -649,6 +649,7 @@ class Game:
 
         self.flash_alpha = 0
         self.flash_timer = 0
+        self.screen_shake = 0  # Add this line
 
         self.init_enemies()
         self.init_barriers()
@@ -723,7 +724,7 @@ class Game:
             star.update()
 
         if self.state == "PLAYING":
-            # UFO
+            # UFO Spawning
             if self.ufo_spawn_time == 0:
                 self.ufo_spawn_time = current_time
             elif current_time - self.ufo_spawn_time > self.ufo_spawn_interval:
@@ -740,7 +741,7 @@ class Game:
                 if not self.ufo.active:
                     self.ufo = None
 
-            # Enemy Movement
+            # Enemy Movement (Smooth)
             move_step = self.enemy_move_speed * self.enemy_direction
             edge_reached = False
             for enemy in self.enemies:
@@ -813,6 +814,8 @@ class Game:
                 barrier.update()
 
             # COLLISIONS
+
+            # 1. Player Bullets vs Enemies
             for b in self.player_bullets[:]:
                 hit = False
                 for enemy in self.enemies:
@@ -827,56 +830,82 @@ class Game:
                         self.sound_manager.play_combo()
                         self.spawn_explosion(enemy.x + enemy.width // 2, enemy.y + enemy.height // 2, enemy.color)
                         self.sound_manager.play_explosion()
-
-                        # Floating Text
                         self.floating_texts.append(
                             FloatingText(enemy.x + enemy.width // 2, enemy.y, f"+{points}", (255, 255, 0)))
 
-                        if random.random() < 0.15:  # Increased chance for fun
+                        if random.random() < 0.15:
                             self.powerups.append(PowerUp(enemy.x, enemy.y))
                         hit = True
                         break
 
                 if not hit:
+                    # Bullet vs Barrier
                     for barrier in self.barriers:
                         if barrier.active and barrier.take_damage(b.rect):
                             b.active = False
                             self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
                             break
 
+                    if not b.active:
+                        # Bullet vs Enemy Bullet
+                        for eb in self.enemy_bullets[:]:
+                            if b.rect.colliderect(eb.rect):
+                                b.active = False
+                                eb.active = False
+                                self.spawn_explosion(b.x, b.y, (255, 255, 255))
+                                break
+
+            # 2. Enemy Bullets vs Barriers (Moved before Player for protection)
             for b in self.enemy_bullets[:]:
-                if b.rect.colliderect(self.player.rect):
-                    b.active = False
+                for barrier in self.barriers:
+                    if barrier.active and barrier.take_damage(b.rect):
+                        b.active = False
+                        self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
+                        break
+
+            # 3. Enemy Bullets vs Player
+            for b in self.enemy_bullets[:]:
+                if b.active and b.rect.colliderect(self.player.rect):
                     if self.player.shield_active:
                         self.player.shield_active = False
                         self.spawn_explosion(self.player.x, self.player.y, (100, 255, 255))
                         self.flash_alpha = 100
                         self.flash_timer = current_time
+                        b.active = False
                     else:
                         self.player_hit()
+                        b.active = False
                     break
 
+            # 4. Enemies vs Player (Game Over)
             for enemy in self.enemies:
                 if enemy.active and enemy.y + enemy.height >= self.player.y:
                     self.player_hit()
+                    self.spawn_explosion(enemy.x, enemy.y, enemy.color)
                     enemy.active = False
                     break
 
+            # 5. UFO Collision
             if self.ufo and self.ufo.active:
                 for b in self.player_bullets[:]:
                     if b.active and b.rect.colliderect(self.ufo.rect):
                         b.active = False
+                        # Capture coordinates BEFORE setting ufo to None
+                        ufo_x = self.ufo.x + self.ufo.width // 2
+                        ufo_y = self.ufo.y + self.ufo.height // 2
+
                         self.score += self.ufo.score_value
                         self.persistence.add_score(self.ufo.score_value)
-                        self.spawn_explosion(self.ufo.x + self.ufo.width // 2, self.ufo.y + self.ufo.height // 2,
-                                             UFO_COLOR)
+                        self.spawn_explosion(self.ufo.x, self.ufo.y, UFO_COLOR)
                         self.sound_manager.play_explosion()
                         self.ufo.active = False
                         self.ufo = None
-                        self.floating_texts.append(
-                            FloatingText(self.ufo.x + self.ufo.width // 2, self.ufo.y, "BOSS!", (255, 0, 255)))
+
+                        # Create Floating Text after ufo is None
+                        self.floating_texts.append(FloatingText(ufo_x, ufo_y, "BOSS!", (255, 0, 255)))
                         break
 
+            # Level Complete
             if not any(e.active for e in self.enemies):
                 self.level += 1
                 self.enemy_move_speed += 1
@@ -887,19 +916,29 @@ class Game:
                 self.sound_manager.play_level_up()
                 self.spawn_explosion(WIDTH // 2, HEIGHT // 2, (255, 255, 255))
 
+            # Particles
             for p in self.particles:
                 p.update()
             self.particles = [p for p in self.particles if p.life > 0]
 
+            # Floating Texts
             for t in self.floating_texts:
                 t.update()
-            self.floating_texts = [t for t in self.floating_texts if t.update()]
+            self.floating_texts = [t for t in self.floating_texts if t.life > 0]
 
-            # Flash decay
-            if current_time - self.flash_timer > 100:
-                self.flash_alpha = 100
-            if current_time - self.flash_timer < 200:
+            # Flash Decay
+            if self.flash_alpha > 0:
                 self.flash_alpha = max(0, self.flash_alpha - 10)
+
+            # Flash Decay (for hit effects)
+            if self.flash_alpha > 0:
+                self.flash_alpha = max(0, self.flash_alpha - 10)
+
+            # Screen Shake Decay (if used)
+            if self.screen_shake > 0:
+                self.screen_shake -= 0.5
+                if self.screen_shake < 0:
+                    self.screen_shake = 0
 
     def player_hit(self):
         self.spawn_explosion(self.player.x + self.player.width // 2, self.player.y + self.player.height // 2,
@@ -919,39 +958,55 @@ class Game:
                 self.persistence.save()
 
     def draw(self):
+        # Background
         bg_surface = pygame.Surface((WIDTH, HEIGHT))
         bg_surface.fill(BG_COLOR)
+
+        # Stars
         for star in self.stars:
             star.draw(bg_surface)
+
+        # Apply Background
         self.screen.blit(bg_surface, (0, 0))
 
         if self.state == "START":
-            self.draw_menu()
+            self.draw_menu("NEON INVADERS", "Press SPACE to Start", "Arrows: Move | Space: Shoot | P: Pause")
         elif self.state == "PLAYING":
             self.player.draw(self.screen)
             for barrier in self.barriers:
-                if barrier.active: barrier.draw(self.screen)
+                if barrier.active:
+                    barrier.draw(self.screen)
             for enemy in self.enemies:
-                if enemy.active: enemy.draw(self.screen, pygame.time.get_ticks())
-            if self.ufo and self.ufo.active: self.ufo.draw(self.screen)
-            for b in self.player_bullets: b.draw(self.screen)
-            for b in self.enemy_bullets: b.draw(self.screen)
-            for p in self.powerups: p.draw(self.screen)
-            for p in self.particles: p.draw(self.screen)
-            for t in self.floating_texts: t.draw(self.screen)
+                if enemy.active:
+                    enemy.draw(self.screen, pygame.time.get_ticks())
+            if self.ufo and self.ufo.active:
+                self.ufo.draw(self.screen)
+            for b in self.player_bullets:
+                b.draw(self.screen)
+            for b in self.enemy_bullets:
+                b.draw(self.screen)
+            for p in self.powerups:
+                p.draw(self.screen)
+            for p in self.particles:
+                p.draw(self.screen)
+            for t in self.floating_texts:
+                t.draw(self.screen)
             self.draw_hud()
         elif self.state == "PAUSE":
-            self.draw_menu("PAUSED", "Press P to Resume")
+            self.draw_menu("PAUSED", "Press P to Resume | ESC to Quit")
         elif self.state in ["GAMEOVER", "VICTORY"]:
             title = "GAME OVER" if self.state == "GAMEOVER" else "LEVEL COMPLETE!"
             color = (255, 50, 50) if self.state == "GAMEOVER" else (50, 255, 50)
             self.draw_menu(title, f"Score: {self.score}", "High Score: " + str(self.high_score))
 
-        # Flash Effect (Instead of Shake)
+        # Flash Effect for explosions/hits (not a permanent overlay)
         if self.flash_alpha > 0:
             flash = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             flash.fill((255, 255, 255, self.flash_alpha))
             self.screen.blit(flash, (0, 0))
+            self.flash_alpha -= 10
+            if self.flash_alpha < 0:
+                self.flash_alpha = 0
 
         pygame.display.flip()
 

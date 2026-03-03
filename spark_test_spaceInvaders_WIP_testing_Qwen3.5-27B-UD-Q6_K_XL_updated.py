@@ -191,7 +191,6 @@ class SoundManager:
 class GlowRenderer:
     @staticmethod
     def draw_glow(surface, color, rect, radius=15, intensity=0.5):
-        # Draw multiple layers for glow
         for r in range(radius, 0, -5):
             alpha = int(255 * intensity * (r / radius) * 0.4)
             s = pygame.Surface((rect.width + r * 2, rect.height + r * 2), pygame.SRCALPHA)
@@ -226,7 +225,6 @@ class FloatingText:
         alpha = int(255 * self.life)
         s = pygame.Surface((1, 1), pygame.SRCALPHA)
         text_surf = self.font.render(self.text, True, self.color)
-        # Apply alpha
         text_surf.set_alpha(alpha)
         surface.blit(text_surf, (self.x, self.y))
 
@@ -319,7 +317,6 @@ class PowerUp:
         txt = pygame.transform.rotate(txt, self.angle * 180 / math.pi)
         s.blit(txt, (self.width // 2 - txt.get_width() // 2, self.height // 2 - txt.get_height() // 2))
 
-        # Glow
         GlowRenderer.draw_glow(surface, self.color, self.rect, radius=10, intensity=0.6)
         surface.blit(s, (self.x, self.y))
 
@@ -336,6 +333,7 @@ class Player:
         self.max_lives = stats['max_lives']
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
         self.score_mult = stats['score_mult']
+        self.color = PLAYER_COLOR  # Added missing color attribute
 
         self.powerups = []
         self.shield_active = stats['start_shield']
@@ -383,7 +381,6 @@ class Player:
         scaled_sprite = pygame.transform.scale(SPRITE_PLAYER, (self.width, self.height))
         surface.blit(scaled_sprite, (self.x, self.y))
 
-        # Engine Glow
         glow_size = 8 + int(math.sin(pygame.time.get_ticks() * 0.05) * 3)
         GlowRenderer.draw_glow_circle(surface, (255, 100, 0), (self.x + self.width // 2, self.y + self.height),
                                       glow_size, 0.8)
@@ -395,7 +392,7 @@ class Invader:
         self.row, self.col = row, col
         self.width, self.height = 30, 20
         self.level = level
-        self.hp = 1 + (level // 3)  # More health on higher levels
+        self.hp = 1 + (level // 3)
 
         if row == 0:
             self.sprite = SPRITE_ENEMY_3
@@ -511,18 +508,15 @@ class Game:
         self.small_font = pygame.font.SysFont("Arial", 16)
         self.sound_manager = SoundManager()
 
-        # Load Save Data
         self.save_data = load_save()
 
-        # Shop Upgrades (Static Costs)
         self.upgrades = {
             "max_lives": {"cost": 100, "max": 10, "desc": "Start with 1 more life"},
             "score_mult": {"cost": 200, "max": 3.0, "desc": "Increase Score Multiplier (+0.1)"},
             "start_shield": {"cost": 500, "max": 1, "desc": "Start game with Shield"}
         }
 
-        # Game State
-        self.state = "MENU"  # MENU, PLAYING, PAUSE, GAMEOVER, SHOP
+        self.state = "MENU"
         self.score = 0
         self.high_score = 0
         self.level = 1
@@ -537,14 +531,12 @@ class Game:
         self.stars = [Star() for _ in range(100)]
         self.barriers = []
 
-        # Mechanics
         self.enemy_direction = 1
         self.enemy_move_speed = 2
         self.enemy_drop_distance = 10
         self.ufo_spawn_time = 0
         self.ufo_spawn_interval = random.randint(20000, 40000)
 
-        # Visual Flash
         self.flash_timer = 0
         self.flash_color = (255, 255, 255)
 
@@ -588,17 +580,20 @@ class Game:
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
+
         if self.state == "MENU":
             if keys[pygame.K_SPACE]:
                 self.reset_game()
             elif keys[pygame.K_m] or keys[pygame.K_s]:
                 self.state = "SHOP"
                 self.sound_manager.play_ui_click()
+
         elif self.state == "SHOP":
             if keys[pygame.K_ESCAPE] or keys[pygame.K_m]:
                 self.state = "MENU"
             elif keys[pygame.K_SPACE]:
                 self.reset_game()
+
         elif self.state == "PLAYING":
             current_time = pygame.time.get_ticks()
             if keys[pygame.K_SPACE]:
@@ -606,30 +601,33 @@ class Game:
             self.player.update(keys, current_time)
             if keys[pygame.K_p]:
                 self.state = "PAUSE"
+
         elif self.state == "PAUSE":
             if keys[pygame.K_p]:
                 self.state = "PLAYING"
             elif keys[pygame.K_ESCAPE]:
                 self.state = "MENU"
+
         elif self.state == "GAMEOVER":
             if keys[pygame.K_SPACE]:
                 self.reset_game()
             elif keys[pygame.K_ESCAPE]:
                 self.state = "MENU"
+            # FIX: Add Shop access from Game Over
+            elif keys[pygame.K_m] or keys[pygame.K_s]:
+                self.state = "SHOP"
+                self.sound_manager.play_ui_click()
 
     def update_logic(self):
         current_time = pygame.time.get_ticks()
 
-        # Update Stars
         for star in self.stars:
             star.update()
 
-        # Flash effect decay
         if self.flash_timer > 0:
             self.flash_timer -= 1
 
         if self.state == "PLAYING":
-            # --- UFO LOGIC ---
             if self.ufo_spawn_time == 0:
                 self.ufo_spawn_time = current_time
             elif current_time - self.ufo_spawn_time > self.ufo_spawn_interval:
@@ -645,7 +643,6 @@ class Game:
                     self.sound_manager.play_enemy_shoot()
                 if not self.ufo.active: self.ufo = None
 
-            # --- ENEMY MOVEMENT ---
             move_step = self.enemy_move_speed * self.enemy_direction
             edge_reached = False
             for enemy in self.enemies:
@@ -662,7 +659,6 @@ class Game:
                     enemy.y += self.enemy_drop_distance
                     enemy.x += self.enemy_move_speed * self.enemy_direction * 2
 
-            # --- ENEMY SHOOTING ---
             if len(self.enemy_bullets) < MAX_ENEMY_BULLETS:
                 active_enemies = [e for e in self.enemies if e.active and not e.is_on_cooldown]
                 if active_enemies and random.random() < (0.03 + self.level * 0.005):
@@ -677,7 +673,6 @@ class Game:
                 if enemy.is_on_cooldown and (current_time - enemy.last_shot_time > enemy.shot_cooldown * 1.5):
                     enemy.is_on_cooldown = False
 
-            # --- BULLETS & POWERUPS ---
             for b in self.player_bullets[:]:
                 b.update()
                 if not b.active: self.player_bullets.remove(b)
@@ -700,8 +695,6 @@ class Game:
                     self.spawn_text(p.x, p.y, "POWERUP!", POWERUP_COLOR)
                     self.powerups.remove(p)
 
-            # --- COLLISIONS ---
-            # Player Bullets vs Enemies
             for b in self.player_bullets[:]:
                 hit = False
                 for enemy in self.enemies:
@@ -712,17 +705,14 @@ class Game:
                             self.spawn_explosion(enemy.x, enemy.y, enemy.color)
                             self.sound_manager.play_explosion()
 
-                            # Score & Combo
                             points = int(enemy.score_value * self.player.combo * self.player.score_mult)
                             self.score += points
                             self.player.combo += 1
                             self.player.combo_timer = current_time
                             self.spawn_text(enemy.x, enemy.y, str(points), BULLET_COLOR)
 
-                            # Coin Chance
                             if random.random() < 0.15:
                                 self.spawn_text(enemy.x, enemy.y, "+10 COINS", COIN_COLOR)
-                                # Add to save data immediately
                                 self.save_data['total_coins'] += 10
                                 save_save(self.save_data)
 
@@ -732,12 +722,10 @@ class Game:
                             hit = True
                             break
 
-                        # Hit effect
                         b.active = False
                         hit = True
 
                 if not hit:
-                    # Bullet vs Barriers
                     for barrier in self.barriers:
                         if barrier.active and barrier.take_damage(b.rect):
                             b.active = False
@@ -745,7 +733,6 @@ class Game:
                             self.spawn_text(b.x, b.y, "Pew!", (200, 200, 200))
                             break
 
-                    # Bullet vs Enemy Bullet
                     for eb in self.enemy_bullets[:]:
                         if b.rect.colliderect(eb.rect):
                             b.active = False
@@ -753,7 +740,6 @@ class Game:
                             self.spawn_explosion(b.x, b.y, (255, 255, 255))
                             break
 
-            # Enemy Bullets vs Player
             for b in self.enemy_bullets[:]:
                 if b.rect.colliderect(self.player.rect):
                     b.active = False
@@ -765,7 +751,6 @@ class Game:
                         self.player_hit()
                     break
 
-            # Enemy Bullets vs Barriers
             for b in self.enemy_bullets[:]:
                 for barrier in self.barriers:
                     if barrier.active and barrier.take_damage(b.rect):
@@ -773,14 +758,12 @@ class Game:
                         self.spawn_explosion(b.x, b.y, BARRIER_COLOR)
                         break
 
-            # Enemy vs Player (Crash)
             for enemy in self.enemies:
                 if enemy.active and enemy.y + enemy.height >= self.player.y:
                     self.player_hit()
                     enemy.active = False
                     break
 
-            # UFO Collision
             if self.ufo and self.ufo.active:
                 for b in self.player_bullets[:]:
                     if b.active and b.rect.colliderect(self.ufo.rect):
@@ -793,7 +776,6 @@ class Game:
                         self.ufo = None
                         break
 
-            # Level Complete
             if not any(e.active for e in self.enemies):
                 self.level += 1
                 self.enemy_move_speed += 1
@@ -801,7 +783,6 @@ class Game:
                 self.spawn_explosion(WIDTH // 2, HEIGHT // 2, (255, 255, 255))
                 self.spawn_text(WIDTH // 2 - 50, HEIGHT // 2, "LEVEL " + str(self.level), (0, 255, 0))
 
-            # Particles & Text
             for p in self.particles: p.update()
             self.particles = [p for p in self.particles if p.life > 0]
 
@@ -812,7 +793,6 @@ class Game:
         self.spawn_explosion(self.player.x, self.player.y, self.player.color, 30)
         self.sound_manager.play_explosion()
 
-        # Screen Flash
         self.flash_timer = 10
         self.flash_color = (255, 0, 0)
 
@@ -823,7 +803,6 @@ class Game:
 
         if self.player.lives <= 0:
             self.state = "GAMEOVER"
-            # Save High Score logic if needed
             if self.score > self.high_score:
                 self.high_score = self.score
 
@@ -870,17 +849,15 @@ class Game:
             # Show Coins Earned
             coin_text = self.font.render("Earned Coins: " + str(self.save_data.get('total_coins', 0)), True, COIN_COLOR)
             self.screen.blit(coin_text, (WIDTH // 2 - coin_text.get_width() // 2, HEIGHT // 2 + 100))
+            # FIX: Add Shop Access Text
+            shop_text = self.font.render("Press M for Shop", True, (100, 100, 100))
+            self.screen.blit(shop_text, (WIDTH // 2 - shop_text.get_width() // 2, HEIGHT // 2 + 140))
 
         # Screen Flash Overlay
         if self.flash_timer > 0:
             s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             s.fill((*self.flash_color[:3], 150))
             self.screen.blit(s, (0, 0))
-
-        # Vignette
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        pygame.draw.circle(overlay, (0, 0, 0, 150), (WIDTH // 2, HEIGHT // 2), WIDTH)
-        self.screen.blit(overlay, (0, 0))
 
         pygame.display.flip()
 
@@ -891,24 +868,35 @@ class Game:
         s.fill(UI_BG)
         self.screen.blit(s, (0, 0))
 
+        # --- LEFT: SCORE ---
         score_surf = self.large_font.render(f"SCORE: {self.score}", True, TEXT_COLOR)
-        self.screen.blit(score_surf, (15, 5))
+        self.screen.blit(score_surf, (15, 10))
 
-        combo_surf = self.font.render(f"COMBO: x{self.player.combo}", True, COIN_COLOR)
-        self.screen.blit(combo_surf, (15 + score_surf.get_width() + 20, 10))
-
-        lives_text = "LIVES: " + "❤" * self.player.lives
-        lives_surf = self.font.render(lives_text, True, (255, 50, 50))
-        self.screen.blit(lives_surf, (WIDTH - 150, 10))
-
-        # Active Powerups
+        # --- CENTER: POWERUPS ---
         pu_text = ""
         if POWERUP_RAPID in self.player.powerups: pu_text += "R"
         if POWERUP_SPREAD in self.player.powerups: pu_text += "S"
         if self.player.shield_active: pu_text += "H"
         if pu_text:
             pu_surf = self.font.render(f"ACTIVE: {pu_text}", True, POWERUP_COLOR)
-            self.screen.blit(pu_surf, (WIDTH // 2 - 50, 10))
+            # Center the powerup text
+            self.screen.blit(pu_surf, (WIDTH // 2 - pu_surf.get_width() // 2, 10))
+
+        # --- RIGHT: COMBO & LIVES ---
+        # FIX: Move Combo and Lives to the right side so they don't overlap with Score
+
+        # Render Lives with Hearts (♥)
+        heart_symbol = "♥"
+        lives_surf = self.font.render(f"LIVES: {heart_symbol * self.player.lives}", True, (255, 50, 50))
+        # Position Lives at the far right
+        lives_x = WIDTH - lives_surf.get_width() - 15
+        self.screen.blit(lives_surf, (lives_x, 10))
+
+        # Render Combo next to Lives
+        combo_surf = self.font.render(f"COMBO: x{self.player.combo}", True, COIN_COLOR)
+        # Position Combo to the left of Lives with some padding
+        combo_x = lives_x - combo_surf.get_width() - 20
+        self.screen.blit(combo_surf, (combo_x, 10))
 
     def draw_menu(self):
         title = self.large_font.render("NEON INVADERS", True, PLAYER_COLOR)
@@ -922,15 +910,13 @@ class Game:
         sub2 = self.font.render("Press S or M for Shop", True, COIN_COLOR)
         self.screen.blit(sub2, (WIDTH // 2 - sub2.get_width() // 2, 250))
 
-        # Show Coins
         coins = self.font.render(f"Coins: {self.save_data['total_coins']}", True, COIN_COLOR)
         self.screen.blit(coins, (WIDTH // 2 - coins.get_width() // 2, 300))
 
     def draw_shop(self):
-        # Background
         s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        s.fill((0, 0, 0, 150))
-        self.screen.blit(s, (0, 0))
+        s.fill((0, 0, 0, 100))
+        self.screen.blit(s, (0, 40))
 
         title = self.large_font.render("UPGRADE SHOP", True, COIN_COLOR)
         self.screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 50))
@@ -938,7 +924,6 @@ class Game:
         sub = self.font.render(f"Coins: {self.save_data['total_coins']} | Press SPACE to Play", True, TEXT_COLOR)
         self.screen.blit(sub, (WIDTH // 2 - sub.get_width() // 2, 100))
 
-        # Upgrade List
         y_pos = 160
         keys = list(self.upgrades.keys())
 
@@ -946,14 +931,18 @@ class Game:
             info = self.upgrades[key]
             current_val = self.save_data.get(key, 0) if key != "start_shield" else self.save_data.get(key, False)
 
-            # Button Rect
             btn_rect = pygame.Rect(WIDTH // 2 - 200, y_pos, 400, 60)
             pygame.draw.rect(self.screen, (40, 40, 60), btn_rect, border_radius=10)
             pygame.draw.rect(self.screen, (60, 60, 80), btn_rect, 2, border_radius=10)
 
             # Text
             name = key.replace("_", " ").upper()
-            val_str = str(current_val) if key != "start_shield" else "ON" if current_val else "OFF"
+            if key == "score_mult":
+                val_str = f"{round(current_val, 1)}"  # FIX: Round to 1 decimal
+            elif key == "start_shield":
+                val_str = "ON" if current_val else "OFF"
+            else:
+                val_str = str(current_val)
 
             txt1 = self.shop_font.render(f"{name}: {val_str}", True, TEXT_COLOR)
             self.screen.blit(txt1, (btn_rect.x + 10, btn_rect.y + 5))
@@ -961,12 +950,10 @@ class Game:
             txt2 = self.small_font.render(info["desc"], True, (150, 150, 150))
             self.screen.blit(txt2, (btn_rect.x + 10, btn_rect.y + 30))
 
-            # Cost
             cost_str = f"Cost: {info['cost']}" if current_val < info['max'] else "MAXED"
             cost_surf = self.font.render(cost_str, True, COIN_COLOR if current_val < info['max'] else (100, 100, 100))
             self.screen.blit(cost_surf, (btn_rect.right - 100, btn_rect.y + 25))
 
-            # Click Logic
             mouse = pygame.mouse.get_pos()
             click = pygame.mouse.get_pressed()
             if btn_rect.collidepoint(mouse):
@@ -989,7 +976,8 @@ class Game:
             if key == "max_lives":
                 self.save_data['max_lives'] += 1
             elif key == "score_mult":
-                self.save_data['score_mult'] += 0.1
+                # FIX: Round to prevent accumulation errors
+                self.save_data['score_mult'] = round(self.save_data['score_mult'] + 0.1, 1)
             elif key == "start_shield":
                 self.save_data['start_shield'] = True
 
@@ -1015,7 +1003,7 @@ class Star:
         self.size = random.randint(1, 2)
         self.speed = random.uniform(0.2, 1.0)
         self.brightness = random.randint(100, 255)
-        self.layer = random.randint(1, 3)  # Parallax layers
+        self.layer = random.randint(1, 3)
 
     def update(self):
         self.y += self.speed * self.layer
@@ -1036,7 +1024,6 @@ if __name__ == "__main__":
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.USEREVENT:
-                # For powerup sound sequence
                 game.sound_manager.create_tone(800, 0.05, 0.1, 'square').play()
 
         game.handle_input()
