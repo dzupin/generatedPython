@@ -1,9 +1,1 @@
-{
-    "research_points": 74,
-    "upgrades": {
-        "starting_money": 4,
-        "starting_health": 2,
-        "gatling_damage": 3,
-        "cannon_cost": 3
-    }
-}
+{"starting_lives": {"name": "Extra Lives", "base": 3, "max": 5, "cost_per_level": 500, "current": 503, "level": 1}, "fire_rate": {"name": "Fire Rate", "base": 350, "max": 150, "cost_per_level": 750, "current": 350, "level": 0}, "shield_duration": {"name": "Shield Duration", "base": 8000, "max": 15000, "cost_per_level": 600, "current": 15200, "level": 12}, "bomb_cooldown": {"name": "Bomb Cooldown", "base": 15000, "max": 8000, "cost_per_level": 800, "current": 15000, "level": 0}, "score_multiplier": {"name": "Score Multiplier", "base": 1, "max": 3, "cost_per_level": 1000, "current": 101.0, "level": 1}, "credit_bonus": {"name": "Credit Bonus", "base": 1, "max": 2, "cost_per_level": 900, "current": 901, "level": 1}}
