@@ -11,118 +11,117 @@ import random
 import math
 
 # --- Configuration & Constants ---
-WIDTH, HEIGHT = 800, 600
+WIDTH = 800
+HEIGHT = 600
 FPS = 60
 
-# Neon Color Palette
+# Colors (Neon/Vibrant Palette)
 BLACK = (5, 5, 15)
 WHITE = (255, 255, 255)
 CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 YELLOW = (255, 255, 0)
-GREEN = (57, 255, 20)
+GREEN = (50, 255, 50)
 RED = (255, 50, 50)
 ORANGE = (255, 165, 0)
 
-# Game Settings
-PLAYER_SPEED = 6
-BULLET_SPEED = -8
-ALIEN_BULLET_SPEED = 5
-ALIEN_SPEED_X = 2
-ALIEN_DROP = 40
 
+# --- Helper Classes for "Juice" ---
 
-class Particle:
+class Particle(pygame.sprite.Sprite):
+    """Small particles for explosions."""
+
     def __init__(self, x, y, color):
-        self.x = x
-        self.y = y
-        self.color = color
-        self.vx = random.uniform(-3, 3)
-        self.vy = random.uniform(-3, 3)
-        self.lifetime = random.randint(20, 40)
-
-    def update(self):
-        self.x += self.vx
-        self.y += self.vy
-        self.lifetime -= 1
-
-    def draw(self, screen, offset):
-        if self.lifetime > 0:
-            pygame.draw.circle(screen, self.color, (int(self.x + offset[0]), int(self.y + offset[1])), 2)
-
-
-class PowerUp(pygame.sprite.Sprite):
-    def __init__(self, x, y, type):
         super().__init__()
-        self.type = type
-        self.image = pygame.Surface((20, 20), pygame.SRCALPHA)
-        color = YELLOW if type == 'TRIPLE' else CYAN
-        pygame.draw.circle(self.image, color, (10, 10), 10, 2)
-        pygame.draw.circle(self.image, color, (10, 10), 4)
+        self.image = pygame.Surface((4, 4))
+        self.image.fill(color)
         self.rect = self.image.get_rect(center=(x, y))
-        self.speed = 3
+        self.vel_x = random.uniform(-3, 3)
+        self.vel_y = random.uniform(-3, 3)
+        self.lifetime = 25  # Frames
 
     def update(self):
-        self.rect.y += self.speed
-        if self.rect.top > HEIGHT:
+        self.rect.x += self.vel_x
+        self.rect.y += self.vel_y
+        self.lifetime -= 1
+        if self.lifetime <= 0:
             self.kill()
 
+
+class Barrier(pygame.sprite.Sprite):
+    """Destructible bunkers."""
+
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((40, 40), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.health = 3
+        self.draw_barrier()
+
+    def draw_barrier(self):
+        self.image.fill((0, 0, 0, 0))  # Clear
+        # Draw a blocky green barrier
+        color = (0, 150, 0) if self.health > 1 else (0, 60, 0)
+        for i in range(4):
+            for j in range(4):
+                if random.random() > 0.1:  # Slightly irregular
+                    pygame.draw.rect(self.image, color, (i * 10, j * 10, 10, 10))
+
+    def hit(self):
+        self.health -= 1
+        if self.health <= 0:
+            self.kill()
+        else:
+            self.draw_barrier()
+
+
+# --- Core Game Classes ---
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
-        self.image = pygame.Surface((50, 40), pygame.SRCALPHA)
-        self.draw_player()
+        self.image = pygame.Surface((40, 30), pygame.SRCALPHA)
+        self._draw_ship()
         self.rect = self.image.get_rect(midbottom=(WIDTH // 2, HEIGHT - 20))
-        self.shielded = False
-        self.triple_shot = 0
+        self.speed = 7
 
-    def draw_player(self):
-        points = [(25, 0), (0, 40), (50, 40)]
+    def _draw_ship(self):
+        points = [(20, 0), (40, 30), (30, 25), (10, 25), (0, 30)]
         pygame.draw.polygon(self.image, CYAN, points)
         pygame.draw.polygon(self.image, WHITE, points, 2)
-        pygame.draw.rect(self.image, WHITE, (20, 10, 10, 10))
 
-    def update(self, keys):
+    def update(self):
+        keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT] and self.rect.left > 0:
-            self.rect.x -= PLAYER_SPEED
+            self.rect.x -= self.speed
         if keys[pygame.K_RIGHT] and self.rect.right < WIDTH:
-            self.rect.x += PLAYER_SPEED
-        if self.triple_shot > 0:
-            self.triple_shot -= 1
+            self.rect.x += self.speed
 
 
 class Alien(pygame.sprite.Sprite):
-    def __init__(self, x, y, alien_type):
+    def __init__(self, x, y, color, level_speed):
         super().__init__()
-        self.image = pygame.Surface((40, 30), pygame.SRCALPHA)
-        self.type = alien_type
-        self.draw_alien()
+        self.color = color
+        self.image = pygame.Surface((35, 30), pygame.SRCALPHA)
+        self._draw_alien()
         self.rect = self.image.get_rect(topleft=(x, y))
+        self.direction = 1
+        self.base_speed = level_speed
 
-    def draw_alien(self):
-        color = GREEN if self.type == 0 else MAGENTA if self.type == 1 else YELLOW
-        if self.type == 0:
-            pygame.draw.rect(self.image, color, (10, 0, 20, 20))
-            pygame.draw.rect(self.image, color, (0, 10, 40, 10))
-            pygame.draw.rect(self.image, color, (5, 20, 5, 10))
-            pygame.draw.rect(self.image, color, (30, 20, 5, 10))
-        elif self.type == 1:
-            pygame.draw.rect(self.image, color, (5, 5, 30, 15))
-            pygame.draw.rect(self.image, color, (0, 15, 10, 10))
-            pygame.draw.rect(self.image, color, (30, 15, 10, 10))
-        else:
-            pygame.draw.ellipse(self.image, color, (5, 0, 30, 20))
-            pygame.draw.rect(self.image, color, (10, 20, 5, 10))
-            pygame.draw.rect(self.image, color, (25, 20, 5, 10))
+    def _draw_alien(self):
+        offsets = [(10, 5), (25, 5), (5, 15), (30, 15), (10, 25), (25, 25)]
+        for ox, oy in offsets:
+            pygame.draw.rect(self.image, self.color, (ox, oy, 15, 10))
+        pygame.draw.rect(self.image, WHITE, (5, 5, 30, 25), 1)
 
-    def update(self, dx, dy):
-        self.rect.x += dx
-        self.rect.y += dy
+    def update(self, move_down=False):
+        if move_down:
+            self.rect.y += 30
+        self.rect.x += self.base_speed * self.direction
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, speed, color):
+    def __init__(self, x, y, color, speed):
         super().__init__()
         self.image = pygame.Surface((4, 15))
         self.image.fill(color)
@@ -135,203 +134,189 @@ class Bullet(pygame.sprite.Sprite):
             self.kill()
 
 
-class Game:
+class Star:
     def __init__(self):
-        pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Neon Invaders: Overdrive")
-        self.clock = pygame.time.Clock()
-        self.font_main = pygame.font.SysFont("Consolas", 24, bold=True)
-        self.font_big = pygame.font.SysFont("Consolas", 60, bold=True)
-
-        self.stars = [(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(100)]
-        self.shake_amount = 0
-        self.particles = []
-        self.reset_game()
-
-    def reset_game(self):
-        self.player = pygame.sprite.GroupSingle(Player())
-        self.aliens = pygame.sprite.Group()
-        self.player_bullets = pygame.sprite.Group()
-        self.alien_bullets = pygame.sprite.Group()
-        self.powerups = pygame.sprite.Group()
-
-        self.level = 1
-        self.score = 0
-        self.combo = 0
-        self.combo_timer = 0
-        self.game_over = False
-        self.won = False
-        self.spawn_aliens()
-
-    def spawn_aliens(self):
-        self.aliens.empty()
-        rows = 5
-        cols = min(12, 8 + self.level)
-        for row in range(rows):
-            for col in range(cols):
-                alien_type = row // 2
-                self.aliens.add(Alien(80 + col * 50, 50 + row * 45, alien_type))
-        self.alien_direction = 1
-        self.alien_speed = ALIEN_SPEED_X + (self.level * 0.5)
-
-    def trigger_shake(self, amount):
-        self.shake_amount = amount
-
-    def create_explosion(self, x, y, color):
-        for _ in range(15):
-            self.particles.append(Particle(x, y, color))
-
-    def run(self):
-        running = True
-        while running:
-            self.clock.tick(FPS)
-
-            offset = [0, 0]
-            if self.shake_amount > 0:
-                offset = [random.randint(-self.shake_amount, self.shake_amount),
-                          random.randint(-self.shake_amount, self.shake_amount)]
-                self.shake_amount -= 1
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE and not self.game_over:
-                        self.fire_bullet()
-                    if event.key == pygame.K_r and self.game_over:
-                        self.reset_game()
-
-            if not self.game_over:
-                self.update()
-
-            self.draw(offset)
-
-        pygame.quit()
-
-    def fire_bullet(self):
-        p = self.player.sprite
-        if p.triple_shot > 0:
-            self.player_bullets.add(Bullet(p.rect.centerx, p.rect.top, BULLET_SPEED, WHITE))
-            self.player_bullets.add(Bullet(p.rect.left, p.rect.top, BULLET_SPEED, WHITE))
-            self.player_bullets.add(Bullet(p.rect.right, p.rect.top, BULLET_SPEED, WHITE))
-        else:
-            self.player_bullets.add(Bullet(p.rect.centerx, p.rect.top, BULLET_SPEED, WHITE))
+        self.x, self.y = random.randint(0, WIDTH), random.randint(0, HEIGHT)
+        self.size = random.randint(1, 2)
+        self.speed = random.uniform(0.5, 1.5)
 
     def update(self):
-        keys = pygame.key.get_pressed()
-        self.player.update(keys)
-        self.player_bullets.update()
-        self.alien_bullets.update()
-        self.powerups.update()
+        self.y += self.speed
+        if self.y > HEIGHT: self.y = 0; self.x = random.randint(0, WIDTH)
 
-        if self.combo_timer > 0:
-            self.combo_timer -= 1
-        else:
-            self.combo = 0
+    def draw(self, screen):
+        pygame.draw.circle(screen, (60, 60, 80), (int(self.x), int(self.y)), self.size)
 
-        # --- FIXED ALIEN MOVEMENT LOGIC ---
-        move_down = False
-        for alien in self.aliens:
-            if alien.rect.right >= WIDTH or alien.rect.left <= 0:
-                move_down = True
-                break
 
-        if move_down:
-            self.alien_direction *= -1
-            # Shift all aliens down
-            for alien in self.aliens:
-                alien.rect.y += ALIEN_DROP
-                # NUDGE: Immediately move them away from the wall
-                # to prevent the "stuck" loop
-                alien.rect.x += (5 * self.alien_direction)
+# --- Main Game Engine ---
 
-        self.aliens.update(self.alien_speed * self.alien_direction, 0)
-        # ---------------------------------
+def run_game():
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("NEON INVADERS: OVERDRIVE")
+    clock = pygame.time.Clock()
+    font_large = pygame.font.SysFont("Arial", 64, bold=True)
+    font_small = pygame.font.SysFont("Arial", 24, bold=True)
 
-        if random.random() < 0.01 + (self.level * 0.005) and self.aliens:
-            shooter = random.choice(self.aliens.sprites())
-            self.alien_bullets.add(Bullet(shooter.rect.centerx, shooter.rect.bottom, ALIEN_BULLET_SPEED, RED))
+    # Game State
+    level = 1
+    score = 0
+    shake_timer = 0
+    running = True
+    game_over = False
 
-        hits = pygame.sprite.groupcollide(self.aliens, self.player_bullets, True, True)
-        for hit in hits:
-            self.combo += 1
-            self.combo_timer = 60
-            self.score += 10 * self.combo
-            self.trigger_shake(5)
-            self.create_explosion(hit.rect.centerx, hit.rect.centery,
-                                  GREEN if hit.type == 0 else MAGENTA if hit.type == 1 else YELLOW)
-            if random.random() < 0.1:
-                ptype = 'TRIPLE' if random.random() < 0.5 else 'SHIELD'
-                self.powerups.add(PowerUp(hit.rect.centerx, hit.rect.centery, ptype))
+    def spawn_level(lvl):
+        aliens = pygame.sprite.Group()
+        rows, cols = 5, 10
+        # Speed increases with level
+        speed = 1 + (lvl * 0.5)
+        for r in range(rows):
+            for c in range(cols):
+                color = [GREEN, YELLOW, MAGENTA, RED, CYAN][(r + lvl) % 5]
+                a = Alien(100 + c * 55, 50 + r * 45, color, speed)
+                aliens.add(a)
 
-        pu_hits = pygame.sprite.spritecollide(self.player.sprite, self.powerups, True)
-        for pu in pu_hits:
-            if pu.type == 'TRIPLE':
-                self.player.sprite.triple_shot = 300
-            elif pu.type == 'SHIELD':
-                self.player.sprite.shielded = True
+        barriers = pygame.sprite.Group()
+        for i in range(4):
+            for j in range(3):
+                b = Barrier(120 + i * 160, 450 + j * 40)
+                barriers.add(b)
+        return aliens, barriers
 
-        if pygame.sprite.spritecollide(self.player.sprite, self.alien_bullets, True):
-            if self.player.sprite.shielded:
-                self.player.sprite.shielded = False
-                self.trigger_shake(10)
-            else:
-                self.trigger_shake(20)
-                self.game_over = True
+    # Initialize Objects
+    player = Player()
+    all_sprites = pygame.sprite.Group(player)
+    bullets = pygame.sprite.Group()
+    enemy_bullets = pygame.sprite.Group()
+    particles = pygame.sprite.Group()
+    stars = [Star() for _ in range(100)]
 
-        for alien in self.aliens:
-            if alien.rect.bottom >= self.player.sprite.rect.top:
-                self.game_over = True
+    aliens, barriers = spawn_level(level)
+    all_sprites.add(aliens)
+    all_sprites.add(barriers)
 
-        if not self.aliens:
-            self.level += 1
-            self.spawn_aliens()
-            self.trigger_shake(15)
+    while running:
+        # --- 1. Input & Events ---
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not game_over:
+                    b = Bullet(player.rect.centerx, player.rect.top, YELLOW, -10)
+                    bullets.add(b)
+                    all_sprites.add(b)
+                if event.key == pygame.K_r and game_over:
+                    run_game()
+                    return
 
-        for p in self.particles[:]:
-            p.update()
-            if p.lifetime <= 0:
-                self.particles.remove(p)
+        if not game_over:
+            # --- 2. Logic ---
+            all_sprites.update()
+            particles.update()
+            for s in stars: s.update()
 
-    def draw(self, offset):
-        self.screen.fill(BLACK)
-        for star in self.stars:
-            pygame.draw.circle(self.screen, (60, 60, 100), (star[0] + offset[0], star[1] + offset[1]), 1)
+            # Alien Movement Logic
+            move_down = False
+            for a in aliens:
+                if a.rect.right >= WIDTH or a.rect.left <= 0:
+                    move_down = True
+                    break
+            if move_down:
+                for a in aliens:
+                    a.direction *= -1
+                    if move_down: a.rect.y += 30
 
-        for sprite in list(self.player) + list(self.aliens) + list(self.player_bullets) + \
-                      list(self.alien_bullets) + list(self.powerups):
-            rect = sprite.rect
-            self.screen.blit(sprite.image, (rect.x + offset[0], rect.y + offset[1]))
+            # Collision: Player Bullets -> Aliens
+            hits = pygame.sprite.groupcollide(aliens, bullets, True, True)
+            for hit in hits:
+                score += 100
+                shake_timer = 5  # Trigger screen shake
+                for _ in range(10):  # Explosion particles
+                    p = Particle(hit.rect.centerx, hit.rect.centery, hit.color)
+                    particles.add(p)
+                    all_sprites.add(p)
 
-        for p in self.particles:
-            p.draw(self.screen, offset)
+            # Collision: Bullets -> Barriers
+            pygame.sprite.groupcollide(barriers, bullets, False, True)
+            pygame.sprite.groupcollide(barriers, enemy_bullets, False, True)
 
-        if self.player.sprite.shielded:
-            p_rect = self.player.sprite.rect
-            pygame.draw.circle(self.screen, CYAN, (p_rect.centerx + offset[0], p_rect.centery + offset[1]), 35, 2)
+            # Collision: Bullets -> Barriers (Manual check for barrier health)
+            for b in barriers:
+                if pygame.sprite.spritecollideany(b, bullets):
+                    b.hit()
+                if pygame.sprite.spritecollideany(b, enemy_bullets):
+                    b.hit()
 
-        score_surf = self.font_main.render(f"SCORE: {self.score}", True, WHITE)
-        lvl_surf = self.font_main.render(f"WAVE: {self.level}", True, YELLOW)
-        self.screen.blit(score_surf, (20, 20))
-        self.screen.blit(lvl_surf, (WIDTH - 150, 20))
+            # Enemy Shooting
+            if aliens and random.random() < (0.01 + (level * 0.005)):
+                shooter = random.choice(aliens.sprites())
+                eb = Bullet(shooter.rect.centerx, shooter.rect.bottom, RED, 5 + level)
+                enemy_bullets.add(eb)
+                all_sprites.add(eb)
 
-        if self.combo > 1:
-            combo_surf = self.font_main.render(f"{self.combo}X COMBO!", True, MAGENTA)
-            self.screen.blit(combo_surf, (WIDTH // 2 - 60, 20))
+            # Collision: Player Death
+            if pygame.sprite.spritecollide(player, enemy_bullets, True) or \
+                    pygame.sprite.spritecollide(player, aliens, False):
+                game_over = True
+                shake_timer = 20
 
-        if self.game_over:
+            # Check if Level Cleared
+            if not aliens:
+                level += 1
+                aliens, barriers = spawn_level(level)
+                all_sprites.add(aliens)
+                all_sprites.add(barriers)
+
+            # Check if Aliens reached bottom
+            for a in aliens:
+                if a.rect.bottom >= player.rect.top:
+                    game_over = True
+
+        # --- 3. Rendering ---
+        # Screen Shake logic
+        render_offset = [0, 0]
+        if shake_timer > 0:
+            render_offset = [random.randint(-5, 5), random.randint(-5, 5)]
+            shake_timer -= 1
+
+        screen.fill(BLACK)
+
+        # Draw stars with offset
+        for s in stars:
+            s.draw(screen)
+
+        # Draw everything with shake offset
+        # We create a temporary surface to apply the shake to everything but the UI
+        game_surface = pygame.Surface((WIDTH, HEIGHT))
+        game_surface.fill(BLACK)
+
+        # Re-draw logic for game_surface
+        for s in stars: s.draw(game_surface)
+        for sprite in all_sprites:
+            game_surface.blit(sprite.image, sprite.rect)
+        for sprite in particles:
+            game_surface.blit(sprite.image, sprite.rect)
+
+        screen.blit(game_surface, render_offset)
+
+        # UI (Drawn directly to screen, no shake)
+        score_lbl = font_small.render(f"SCORE: {score}  |  LEVEL: {level}", True, WHITE)
+        screen.blit(score_lbl, (15, 15))
+
+        if game_over:
             overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
-            self.screen.blit(overlay, (0, 0))
-            over_surf = self.font_big.render("SYSTEM FAILURE", True, RED)
-            retry_surf = self.font_main.render("Press 'R' to Reboot System", True, WHITE)
-            self.screen.blit(over_surf, (WIDTH // 2 - over_surf.get_width() // 2, HEIGHT // 2 - 50))
-            self.screen.blit(retry_surf, (WIDTH // 2 - retry_surf.get_width() // 2, HEIGHT // 2 + 30))
+            screen.blit(overlay, (0, 0))
+            msg = font_large.render("GAME OVER", True, RED)
+            retry = font_small.render("PRESS 'R' TO RESTART", True, WHITE)
+            screen.blit(msg, msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 30)))
+            screen.blit(retry, retry.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 40)))
 
         pygame.display.flip()
+        clock.tick(FPS)
+
+    pygame.quit()
 
 
 if __name__ == "__main__":
-    Game().run()
-
+    run_game()
