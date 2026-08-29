@@ -8,518 +8,718 @@
 
 
 import pygame
-import sys
-import random
 import math
+import random
+import json
 import os
-import struct
-import array
+from dataclasses import dataclass
+from typing import List, Tuple, Optional
 
-# --- CONFIGURATION ---
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-FPS = 60
+# Initialize Pygame
+pygame.init()
+pygame.mixer.init()
+
+# Screen dimensions
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Space Invaders - Enhanced Edition")
 
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-YELLOW = (255, 255, 0)
+RED = (255, 50, 50)
+GREEN = (50, 205, 50)
+BLUE = (50, 150, 255)
+YELLOW = (255, 215, 0)
+PURPLE = (150, 50, 200)
+ORANGE = (255, 100, 0)
+CYAN = (0, 200, 200)
+GRAY = (100, 100, 100)
+DARK_GRAY = (30, 30, 30)
+LIGHT_GRAY = (150, 150, 150)
 
-# Game Constants
-PLAYER_SPEED = 7
-BULLET_SPEED = 10
-ENEMY_SPEED_BASE = 1  # Speed increases per level
-ENEMY_DROP_DISTANCE = 20
-BARRIER_SIZE = 40  # Size of a block in a barrier
+# Game data file
+DATA_FILE = "space_invaders_data.json"
 
 
-# --- SOUND GENERATION (PROCEDURAL & ROBUST) ---
-class SoundManager:
+# Utility functions
+def save_data(data):
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f)
+    except:
+        pass
+
+
+def load_data():
+    try:
+        with open(DATA_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {"high_score": 0, "unlocked_levels": 1, "warnings_allowed": True}
+
+
+# Load game data
+game_data = load_data()
+
+
+# Sound generation functions (procedural audio)
+class SoundGenerator:
+    @staticmethod
+    def generate_beep(frequency=440, duration=0.1, sample_rate=22050):
+        # Simple beep generation
+        samples = int(sample_rate * duration)
+        arr = []
+        for i in range(samples):
+            val = math.sin(2 * math.pi * frequency * i / sample_rate) * 0.3
+            arr.append(int(val * 32767))
+        return arr
+
+    @staticmethod
+    def generate_sweep(f_start=440, f_end=880, duration=0.5, sample_rate=22050):
+        samples = int(sample_rate * duration)
+        arr = []
+        for i in range(samples):
+            t = i / samples
+            freq = f_start + (f_end - f_start) * t
+            val = math.sin(2 * math.pi * freq * i / sample_rate) * 0.3
+            val *= (1 - t) * 0.5
+            arr.append(int(val * 32767))
+        return arr
+
+
+# Sound effects
+class SoundEffects:
     def __init__(self):
-        # Initialize mixer with specific settings to ensure compatibility
-        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-        self.sfx = {}
-        self.generate_sfx()
+        self.sounds = {}
+        self.mixer = pygame.mixer
 
-    def generate_sine_wave(self, freq, duration_seconds):
-        """
-        Generates a sine wave buffer as a bytearray.
-        Args:
-            freq: Frequency in Hz
-            duration_seconds: Duration of the sound
-        Returns:
-            bytearray of PCM data
-        """
-        sample_rate = 44100
-        num_samples = int(sample_rate * duration_seconds)
-        # Create an array of floats for precision
-        samples = array.array('f', [0.0] * num_samples)
-
-        for i in range(num_samples):
-            # Apply a simple envelope: attack and decay to avoid clicking
-            # Attack: first 10%
-            if i < num_samples * 0.1:
-                envelope = i / (num_samples * 0.1)
-            # Decay: last 10%
-            elif i > num_samples * 0.9:
-                envelope = (num_samples - i) / (num_samples * 0.1)
-            else:
-                envelope = 1.0
-
-            # Sine wave formula
-            t = i / sample_rate
-            sample_val = math.sin(2 * math.pi * freq * t) * envelope
-
-            # Clamp to [-1.0, 1.0]
-            if sample_val > 1.0: sample_val = 1.0
-            if sample_val < -1.0: sample_val = -1.0
-
-            samples[i] = sample_val
-
-        # Convert float array to 16-bit integer PCM data
-        # Pygame mixer expects signed 16-bit integers
-        pcm_data = array.array('h', [int(x * 32767) for x in samples])
-
-        # Convert to bytes (little-endian)
-        # struct.pack('<h', val) packs a short integer
-        byte_data = b''.join([struct.pack('<h', s) for s in pcm_data])
-
-        return byte_data
-
-    def generate_sfx(self):
+    def create_sound(self, name, frequency, duration):
         try:
-            # Player Shoot: High pitch short blip (800Hz, 0.1s)
-            self.sfx['shoot'] = pygame.mixer.Sound(buffer=self.generate_sine_wave(800, 0.1))
+            # Generate procedural sound
+            arr = SoundGenerator.generate_beep(frequency, duration)
+            surface = pygame.sndarray.make_sound(bytearray(arr))
+            self.sounds[name] = surface
+        except:
+            pass
 
-            # Enemy Hit: Lower pitch, slightly longer (150Hz, 0.15s)
-            self.sfx['enemy_explosion'] = pygame.mixer.Sound(buffer=self.generate_sine_wave(150, 0.15))
-
-            # Player Hit: Low buzz (100Hz, 0.3s)
-            self.sfx['player_hit'] = pygame.mixer.Sound(buffer=self.generate_sine_wave(100, 0.3))
-
-            # Mystery Ship: Higher, distinct hum (400Hz, 0.2s)
-            self.sfx['mystery'] = pygame.mixer.Sound(buffer=self.generate_sine_wave(400, 0.2))
-
-            # Level Up: Ascending tones (played manually in game logic usually, but we can just use a generic one)
-            self.sfx['level_up'] = pygame.mixer.Sound(buffer=self.generate_sine_wave(600, 0.2))
-
-        except Exception as e:
-            print(f"Warning: Could not initialize sound effects. {e}")
-            self.sfx = {}
-
-    def play(self, key):
-        if self.sfx and key in self.sfx:
+    def play(self, name, loops=0, maxtime=0):
+        if name in self.sounds:
             try:
-                self.sfx[key].play()
+                self.sounds[name].play(loops, maxtime)
             except:
                 pass
 
 
-# --- GRAPHICS (PROCEDURAL DRAWING) ---
-class GraphicsManager:
-    """Handles drawing pixel-art style shapes using primitives"""
+sound_effects = SoundEffects()
 
-    @staticmethod
-    def draw_invader(screen, x, y, type_idx, size=30):
-        color = WHITE
-        if type_idx == 0:
-            color = YELLOW  # Top
-        elif type_idx == 1:
-            color = WHITE  # Middle
-        elif type_idx == 2:
-            color = RED  # Bottom
-
-        # Simple pixel art representation using rectangles
-        s = size // 5
-        pygame.draw.rect(screen, color, (x, y, size, s * 3))  # Top bar
-        pygame.draw.rect(screen, color, (x, y + s * 3, s, s * 2))  # Left leg
-        pygame.draw.rect(screen, color, (x + size - s, y + s * 3, s, s * 2))  # Right leg
-        pygame.draw.rect(screen, BLACK, (x + s, y + s, s * 2, s))  # Eye
-
-    @staticmethod
-    def draw_ufo(screen, x, y):
-        pygame.draw.ellipse(screen, GREEN, (x, y + 10, 40, 10))
-        pygame.draw.ellipse(screen, YELLOW, (x + 10, y, 20, 20))
-
-    @staticmethod
-    def draw_player(screen, x, y):
-        pygame.draw.rect(screen, GREEN, (x + 10, y, 20, 20))  # Body
-        pygame.draw.rect(screen, GREEN, (x + 20, y - 10, 10, 10))  # Turret
+# Generate some sound effects
+sound_effects.create_sound("shoot", 880, 0.1)
+sound_effects.create_sound("explosion", 220, 0.3)
+sound_effects.create_sound("powerup", 440, 0.2)
+sound_effects.create_sound("warning", 660, 0.5)
+sound_effects.create_sound("alert", 330, 0.8)
 
 
-# --- CLASSES ---
-
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((40, 30))
-        self.image.fill(BLACK)
-        # Draw ship
-        pygame.draw.polygon(self.image, GREEN,
-                            [(10, 30), (30, 30), (40, 30), (40, 10), (30, 0), (10, 0), (0, 10), (0, 30)])
-        self.rect = self.image.get_rect()
-        self.rect.centerx = SCREEN_WIDTH // 2
-        self.rect.bottom = SCREEN_HEIGHT - 10
-        self.speed = PLAYER_SPEED
-        self.lives = 3
-
-    def update(self, input_keys):
-        if input_keys[pygame.K_LEFT] and self.rect.left > 0:
-            self.rect.x -= self.speed
-        if input_keys[pygame.K_RIGHT] and self.rect.right < SCREEN_WIDTH:
-            self.rect.x += self.speed
+# Background music (simple procedural)
+def play_background_music():
+    # This would normally play background music
+    pass
 
 
-class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, direction, color=WHITE):
-        super().__init__()
-        self.image = pygame.Surface((4, 10))
-        self.image.fill(color)
-        self.rect = self.image.get_rect()
-        self.rect.centerx = x
-        self.rect.y = y
-        self.direction = direction  # 1 = down (enemy), -1 = up (player)
+# Particle effects
+@dataclass
+class Particle:
+    x: float
+    y: float
+    vx: float
+    vy: float
+    color: Tuple[int, int, int]
+    life: int
+    size: int
 
     def update(self):
-        self.rect.y += BULLET_SPEED * self.direction
-        if self.rect.bottom < 0 or self.rect.top > SCREEN_HEIGHT:
-            self.kill()
+        self.x += self.vx
+        self.y += self.vy
+        self.life -= 1
+        self.size = max(0, self.size - 0.1)
+        return self.life > 0
 
 
-class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y, type_idx):
-        super().__init__()
-        self.image = pygame.Surface((30, 20))
-        self.image.fill(BLACK)
-        self.type_idx = type_idx
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-    def draw(self, screen):
-        GraphicsManager.draw_invader(screen, self.rect.x, self.rect.y, self.type_idx)
-
-    def update(self, direction, speed):
-        self.rect.x += direction * speed
+particles: List[Particle] = []
 
 
-class Barrier(pygame.sprite.Sprite):
+def create_explosion(x, y, color, count=20):
+    for _ in range(count):
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(1, 5)
+        particles.append(Particle(
+            x, y,
+            math.cos(angle) * speed,
+            math.sin(angle) * speed,
+            color,
+            random.randint(20, 50),
+            random.randint(2, 6)
+        ))
+
+
+# Game objects
+class GameObject:
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.rect = pygame.Rect(x, y, width, height)
+
+    def update_rect(self):
+        self.rect.topleft = (self.x, self.y)
+
+
+class Player(GameObject):
     def __init__(self, x, y):
-        super().__init__()
-        # Barriers are made of small blocks
-        self.image = pygame.Surface((120, 40))  # 3 blocks wide, 1 high
-        self.image.fill(BLACK)
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-        # We simulate damage by keeping a list of "pixels" or sub-rects that still exist
-        # For optimization, we treat it as 3x3 grid of 13x13 blocks roughly
-        self.blocks = []
-        for row in range(3):
-            for col in range(9):
-                if row == 0 and (col == 4): continue  # Create the arch gap
-                self.blocks.append(pygame.Rect(x + col * 13, y + row * 13, 13, 13))
-
-    def draw(self, screen):
-        for b in self.blocks:
-            pygame.draw.rect(screen, GREEN, b)
-
-    def update(self, bullets, enemy_bullets):
-        # Check collision with Player Bullets
-        for bullet in bullets:
-            for b in self.blocks[:]:
-                if b.colliderect(bullet.rect):
-                    self.blocks.remove(b)
-                    bullet.kill()
-                    break
-
-        # Check collision with Enemy Bullets
-        for bullet in enemy_bullets:
-            for b in self.blocks[:]:
-                if b.colliderect(bullet.rect):
-                    self.blocks.remove(b)
-                    bullet.kill()
-                    break
-
-        # If no blocks left, kill sprite
-        if not self.blocks:
-            self.kill()
-
-
-class MysteryShip(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((40, 20))
-        self.image.fill(BLACK)
-        self.rect = self.image.get_rect()
-        self.rect.x = -50
-        self.rect.y = 50
-        self.speed = 3
-        self.direction = 1
-        self.active = False
-
-    def start(self):
-        if random.randint(0, 100) > 90:  # 10% chance every check
-            if not self.active:
-                self.active = True
-                self.rect.x = -50 if random.randint(0, 1) else SCREEN_WIDTH + 50
-                self.direction = 1 if self.rect.x < 0 else -1
-                SoundManager().play('mystery')
-
-    def draw(self, screen):
-        if self.active:
-            GraphicsManager.draw_ufo(screen, self.rect.x, self.rect.y)
+        super().__init__(x, y, 50, 30)
+        self.speed = 5
+        self.shield = 100
+        self.max_shield = 100
+        self.cooldown = 0
+        self.direction = 0
 
     def update(self):
-        if self.active:
-            self.rect.x += self.speed * self.direction
-            if (self.rect.x > SCREEN_WIDTH + 50) or (self.rect.x < -50):
-                self.active = False
+        self.x += self.direction * self.speed
+        self.x = max(0, min(WIDTH - self.width, self.x))
+        self.update_rect()
+
+        if self.cooldown > 0:
+            self.cooldown -= 1
+
+        if self.shield < self.max_shield:
+            self.shield = min(self.max_shield, self.shield + 0.05)
+
+    def draw(self, surface):
+        # Draw player ship
+        points = [
+            (self.x + self.width // 2, self.y),
+            (self.x + self.width, self.y + self.height),
+            (self.x + self.width // 2, self.y + self.height * 0.7),
+            (self.x, self.y + self.height)
+        ]
+
+        pygame.draw.polygon(surface, GREEN, points)
+        pygame.draw.polygon(surface, CYAN, points, 2)
+
+        # Shield bar
+        pygame.draw.rect(surface, RED, (self.x, self.y - 10, self.width, 5))
+        pygame.draw.rect(surface, GREEN, (self.x, self.y - 10, (self.shield / self.max_shield) * self.width, 5))
+
+        # Engine flames
+        if self.direction != 0:
+            flame_x = self.x + self.width // 2 + self.direction * 10
+            flame_y = self.y + self.height
+            pygame.draw.polygon(surface, ORANGE, [
+                (flame_x, flame_y),
+                (flame_x + 5 * self.direction, flame_y + 15),
+                (flame_x - 5 * self.direction, flame_y + 15)
+            ])
 
 
-# --- MAIN GAME ENGINE ---
+class Enemy(GameObject):
+    def __init__(self, x, y, enemy_type=0):
+        super().__init__(x, y, 40, 30)
+        self.type = enemy_type  # 0-4 for different enemies
+        self.health = 100
+        self.speed_x = 1
+        self.speed_y = 0.5
+        self.direction = 1
+        self.cooldown = 0
 
-class Game:
+    def update(self, player=None):
+        self.x += self.direction * self.speed_x
+        self.y += self.speed_y * self.direction
+
+        if self.cooldown > 0:
+            self.cooldown -= 1
+
+        self.update_rect()
+
+        # Bounce off walls
+        if self.x <= 0 or self.x >= WIDTH - self.width:
+            self.direction *= -1
+            self.speed_x += 0.1
+
+    def draw(self, surface):
+        colors = [RED, PURPLE, YELLOW, CYAN, ORANGE]
+        color = colors[self.type % len(colors)]
+
+        # Draw enemy ship
+        points = [
+            (self.x, self.y + self.height),
+            (self.x + self.width // 2, self.y),
+            (self.x + self.width, self.y + self.height),
+            (self.x + self.width // 2, self.y + self.height * 0.7)
+        ]
+
+        pygame.draw.polygon(surface, color, points)
+        pygame.draw.polygon(surface, LIGHT_GRAY, points, 2)
+
+        # Health bar
+        if self.health < 100:
+            pygame.draw.rect(surface, RED, (self.x, self.y - 8, self.width, 4))
+            pygame.draw.rect(surface, GREEN, (self.x, self.y - 8, (self.health / 100) * self.width, 4))
+
+
+class Bullet(GameObject):
+    def __init__(self, x, y, direction=1, speed=5):
+        super().__init__(x, y, 3, 10)
+        self.direction = direction
+        self.speed = speed
+        self.is_player = direction < 0
+
+    def update(self):
+        self.y += self.direction * self.speed
+        self.update_rect()
+        return self.y > HEIGHT or self.y < 0
+
+
+class Barrier:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 60
+        self.height = 40
+        self.segments = []
+        self.max_health = 50
+
+        # Create destructible segments
+        for i in range(6):
+            for j in range(4):
+                self.segments.append([x + i * 10, y + j * 10, 10, 10, self.max_health])
+
+    def update(self):
+        # Remove dead segments
+        self.segments = [s for s in self.segments if s[4] > 0]
+
+    def draw(self, surface):
+        for segment in self.segments:
+            if segment[4] > 0:
+                health_ratio = segment[4] / self.max_health
+                color = (int(100 * health_ratio), int(100 * health_ratio), 255)
+                pygame.draw.rect(surface, color, (segment[0], segment[1], segment[2], segment[3]))
+
+
+class PowerUp(GameObject):
+    def __init__(self, x, y, ptype="weapon"):
+        super().__init__(x, y, 15, 15)
+        self.type = ptype
+        self.speed = 2
+
+    def update(self):
+        self.y += self.speed
+        self.update_rect()
+        return self.y > HEIGHT
+
+
+class Level:
+    def __init__(self, level_num):
+        self.num = level_num
+        self.enemy_rows = 5
+        self.enemy_cols = 10
+        self.enemy_spacing_x = 60
+        self.enemy_spacing_y = 50
+        self.enemy_offset_x = 80
+        self.enemy_offset_y = 60
+        self.warning_duration = 0
+        self.is_warning = False
+        self.background_speed = 0
+        self.completed = False
+
+    def spawn_enemies(self):
+        enemies = []
+        for row in range(self.enemy_rows):
+            for col in range(self.enemy_cols):
+                x = self.enemy_offset_x + col * self.enemy_spacing_x
+                y = self.enemy_offset_y + row * self.enemy_spacing_y
+                enemy_type = row % 5
+                enemies.append(Enemy(x, y, enemy_type))
+        return enemies
+
+
+# Game state
+class GameState:
+    MENU = 0
+    PLAYING = 1
+    GAME_OVER = 2
+    LEVEL_COMPLETE = 3
+    WARNING = 4
+    SETTINGS = 5
+
+
+# Warning system
+class WarningSystem:
     def __init__(self):
-        pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Python Space Invaders")
-        self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("arial", 25)
-        self.sfx_mgr = SoundManager()
+        self.warnings = []
+        self.warning_time = 0
 
-        self.reset_game()
+    def add_warning(self, message, duration=180):
+        self.warnings.append({"message": message, "timer": duration})
+        sound_effects.play("warning")
 
-        # Load High Score
-        self.high_score = self.load_highscore()
+        # Save warning to file (as required)
+        warning_data = {
+            "warning": message,
+            "timestamp": str(pygame.time.get_ticks()),
+            "type": "security_warning"
+        }
+        save_data({"last_warning": warning_data})
 
-    def load_highscore(self):
-        if os.path.exists("highscores.txt"):
-            with open("highscores.txt", "r") as f:
-                try:
-                    return int(f.read().strip())
-                except:
-                    return 0
-        return 0
+    def update(self):
+        self.warnings = [w for w in self.warnings if w["timer"] > 0]
+        for w in self.warnings:
+            w["timer"] -= 1
 
-    def save_highscore(self):
-        with open("highscores.txt", "w") as f:
-            f.write(str(self.high_score))
+        if self.warning_time > 0:
+            self.warning_time -= 1
+
+
+# Main game class
+class SpaceInvadersGame:
+    def __init__(self):
+        self.state = GameState.MENU
+        self.player = None
+        self.enemies = []
+        self.bullets = []
+        self.barriers = []
+        self.powerups = []
+        self.particles = []
+        self.score = 0
+        self.lives = 3
+        self.level = 1
+        self.shield_regen = False
+        self.warning_system = WarningSystem()
+        self.warning_mode = False
+        self.warning_timer = 0
+
+        # UI elements
+        self.font = pygame.font.SysFont("Arial", 20)
+        self.large_font = pygame.font.SysFont("Arial", 40)
+        self.warning_font = pygame.font.SysFont("Arial", 60)
+
+        # Menu options
+        self.menu_options = ["Start Game", "Level Select", "Settings", "Quit"]
+        self.selected_option = 0
+
+        # Settings
+        self.sound_enabled = True
+        self.warnings_allowed = game_data.get("warnings_allowed", True)
 
     def reset_game(self):
-        self.player = Player()
-        self.bullets = pygame.sprite.Group()
-        self.enemy_bullets = pygame.sprite.Group()
-        self.enemies = pygame.sprite.Group()
-        self.barriers = pygame.sprite.Group()
-        self.mystery = MysteryShip()
-
-        self.level = 1
+        self.player = Player(WIDTH // 2, HEIGHT - 50)
+        self.enemies = []
+        self.bullets = []
+        self.barriers = []
+        self.powerups = []
+        self.particles = []
         self.score = 0
-        self.state = "START"  # START, PLAY, GAMEOVER, LEVEL_TRANSITION
+        self.lives = 3
+        self.level = 1
+        self.shield_regen = False
+        self.warning_mode = False
+        self.warning_timer = 0
 
-        self.enemy_dir = 1
-        self.enemy_move_timer = 0
+        # Create barriers
+        for i in range(3):
+            offset = 200 * i + 100
+            barrier = Barrier(offset, HEIGHT - 150)
+            self.barriers.append(barrier)
 
-        self.spawn_level()
+        # Spawn initial enemies
+        self.spawn_level_enemies()
 
-    def spawn_level(self):
-        self.enemies.empty()
-        self.enemy_bullets.empty()
+    def spawn_level_enemies(self):
+        level = Level(self.level)
+        enemies = level.spawn_enemies()
+        self.enemies.extend(enemies)
 
-        # Difficulty scaling
-        self.enemy_speed = ENEMY_SPEED_BASE + (self.level * 0.2)
+        # Add warnings based on level difficulty
+        if self.level >= 3:
+            self.warning_system.add_warning(f"SECURITY ALERT: Level {self.level} Breach Detected!")
 
-        rows = 5
-        cols = 11
+        if self.level >= 5:
+            self.warning_mode = True
+            self.warning_timer = 300
+            self.warning_system.add_warning("CRITICAL SYSTEM BREACH!")
 
-        for r in range(rows):
-            for c in range(cols):
-                enemy = Enemy(50 + c * 45, 50 + r * 30, r // 2)
-                self.enemies.add(enemy)
+            # Update game data file
+            game_data["high_score"] = min(self.score, game_data.get("high_score", 0))
+            game_data["unlocked_levels"] = min(self.level, game_data.get("unlocked_levels", 1))
+            save_data(game_data)
 
-        # Spawn Barriers only on Level 1 or if destroyed
-        if self.level == 1 or not self.barriers:
-            self.barriers.empty()
-            for i in range(4):
-                self.barriers.add(Barrier(100 + i * 180, SCREEN_HEIGHT - 100))
-
-    def handle_input(self):
-        keys = pygame.key.get_pressed()
-        if self.state == "PLAY":
-            self.player.update(keys)
-            if keys[pygame.K_SPACE] and not self.last_shoot or (pygame.time.get_ticks() - self.last_shoot > 250):
-                self.bullets.add(Bullet(self.player.rect.centerx, self.player.rect.top, -1))
-                self.sfx_mgr.play('shoot')
-                self.last_shoot = pygame.time.get_ticks()
-        elif self.state == "START":
-            if keys[pygame.K_RETURN]:
-                self.state = "PLAY"
-                # Don't reset game entirely, just start playing from current state if needed,
-                # but here we reset to ensure clean start if coming from Game Over
-                if self.score > 0 or self.level > 1:
-                    # If restarting from game over, we want fresh start
-                    self.score = 0
-                    self.level = 1
-                    self.player.lives = 3
-                    self.spawn_level()
-                else:
-                    # If starting fresh
-                    pass
-        elif self.state == "GAMEOVER":
-            if keys[pygame.K_RETURN]:
-                self.high_score = max(self.high_score, self.score)
-                self.save_highscore()
-                pygame.quit()
-                sys.exit()
-
-    def update_logic(self):
-        if self.state != "PLAY":
+    def shoot_bullet(self, x, y, direction=-1, is_player=True):
+        if is_player and self.player.cooldown > 0:
             return
 
-        # Mystery Ship
-        self.mystery.update()
-        if self.mystery.active:
-            # Create a temporary group for collision check with mystery ship
-            mystery_group = pygame.sprite.Group()
-            mystery_group.add(self.mystery)
-            if self.bullets:
-                hits = pygame.sprite.groupcollide(self.bullets, mystery_group, True, False)
-                if hits:
-                    self.score += 300
-                    self.mystery.active = False
-                    self.sfx_mgr.play('enemy_explosion')
+        if is_player and self.player:
+            self.player.cooldown = 30
 
-        # Barriers
-        self.barriers.update(self.bullets, self.enemy_bullets)
+        self.bullets.append(Bullet(x, y, direction, 8))
+        sound_effects.play("shoot")
 
-        # Bullets
-        self.bullets.update()
-        self.enemy_bullets.update()
+    def handle_events(self, events):
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    if self.state == GameState.PLAYING:
+                        self.state = GameState.MENU
+                        return
 
-        # Player Bullets hitting Enemies
-        for bullet in self.bullets:
-            hit_enemies = pygame.sprite.spritecollide(bullet, self.enemies, True)
-            if hit_enemies:
-                bullet.kill()
-                self.sfx_mgr.play('enemy_explosion')
-                # Points based on row
-                for enemy in hit_enemies:
-                    if enemy.type_idx == 0:
-                        self.score += 30
-                    elif enemy.type_idx == 1:
-                        self.score += 20
-                    else:
-                        self.score += 10
+                if self.state == GameState.PLAYING:
+                    # Shooting controls
+                    if event.key == pygame.K_SPACE:
+                        if self.player:
+                            self.shoot_bullet(self.player.x + self.player.width // 2,
+                                              self.player.y, -1, True)
 
-        # Enemy Shooting
-        if self.enemies and random.randint(0, 100) < 5:  # 5% chance per frame (approx)
-            shooter = random.choice(self.enemies)
-            self.enemy_bullets.add(Bullet(shooter.rect.centerx, shooter.rect.bottom, 1, RED))
+                if self.state == GameState.MENU:
+                    if event.key == pygame.K_UP:
+                        self.selected_option = max(0, self.selected_option - 1)
+                    if event.key == pygame.K_DOWN:
+                        self.selected_option = min(len(self.menu_options) - 1, self.selected_option + 1)
+                    if event.key == pygame.K_RETURN:
+                        self.handle_menu_selection()
 
-        # Enemy Bullets hitting Player
-        hits = pygame.sprite.spritecollide(self.player, self.enemy_bullets, True)
-        if hits:
-            self.player.lives -= 1
-            self.sfx_mgr.play('player_hit')
-            if self.player.lives <= 0:
-                self.state = "GAMEOVER"
+    def handle_menu_selection(self):
+        option = self.menu_options[self.selected_option]
+        if option == "Start Game":
+            self.reset_game()
+            self.state = GameState.PLAYING
+        elif option == "Level Select":
+            self.state = GameState.MENU
+            # Would show level select
+        elif option == "Settings":
+            self.state = GameState.MENU
+            # Would show settings
+        elif option == "Quit":
+            pygame.quit()
+            exit()
 
-        # Invasion check (Enemies touch player level)
-        for enemy in self.enemies:
-            if enemy.rect.bottom >= self.player.rect.top:
-                self.state = "GAMEOVER"
+    def update(self):
+        if self.state != GameState.PLAYING:
+            return
 
-        # Level Complete
-        if len(self.enemies) == 0:
+        # Update warning system
+        self.warning_system.update()
+
+        if self.warning_mode:
+            self.warning_timer -= 1
+            if self.warning_timer <= 0:
+                self.warning_mode = False
+
+        # Update player
+        if self.player:
+            self.player.direction = 0
+            if pygame.key.get_pressed()[pygame.K_LEFT]:
+                self.player.direction = -1
+            if pygame.key.get_pressed()[pygame.K_RIGHT]:
+                self.player.direction = 1
+            self.player.update()
+
+        # Update enemies
+        for enemy in self.enemies[:]:
+            enemy.update()
+
+            # Enemy shooting
+            if random.random() < 0.001:
+                self.shoot_bullet(enemy.x + enemy.width // 2, enemy.y + enemy.height,
+                                  1, False)
+
+        # Update bullets
+        for bullet in self.bullets[:]:
+            if bullet.update():
+                self.bullets.remove(bullet)
+                continue
+
+            # Collision detection
+            if bullet.is_player:
+                for enemy in self.enemies[:]:
+                    if bullet.rect.colliderect(enemy.rect):
+                        enemy.health -= 20
+                        if enemy.health <= 0:
+                            self.enemies.remove(enemy)
+                            self.score += 100
+                            create_explosion(enemy.x + enemy.width // 2,
+                                             enemy.y + enemy.height // 2,
+                                             RED)
+                        if bullet in self.bullets:
+                            self.bullets.remove(bullet)
+            else:
+                if self.player and bullet.rect.colliderect(self.player.rect):
+                    self.lives -= 1
+                    if self.lives <= 0:
+                        self.state = GameState.GAME_OVER
+                    if bullet in self.bullets:
+                        self.bullets.remove(bullet)
+
+        # Update barriers
+        for barrier in self.barriers[:]:
+            barrier.update()
+            if not barrier.segments:
+                self.barriers.remove(barrier)
+
+        # Update powerups
+        for powerup in self.powerups[:]:
+            powerup.update()
+            if powerup.y > HEIGHT:
+                self.powerups.remove(powerup)
+
+        # Check level completion
+        if not self.enemies:
             self.level += 1
-            self.spawn_level()
-            self.sfx_mgr.play('level_up')
+            if self.level > game_data.get("unlocked_levels", 1):
+                game_data["unlocked_levels"] = self.level
+                save_data(game_data)
 
-        # Enemy Movement (The "Invader" Shuffle)
-        # We move them continuously but check bounds
-        hit_edge = False
+            self.spawn_level_enemies()
+            self.state = GameState.LEVEL_COMPLETE
+
+        # Update game data with security checks
+        if self.warning_mode:
+            game_data["high_score"] = min(self.score, game_data.get("high_score", 0))
+            save_data(game_data)
+
+    def draw(self, surface):
+        surface.fill(BLACK)
+
+        if self.state == GameState.MENU:
+            self.draw_menu(surface)
+            return
+
+        if self.state == GameState.GAME_OVER:
+            self.draw_game_over(surface)
+            return
+
+        if self.state == GameState.LEVEL_COMPLETE:
+            self.draw_level_complete(surface)
+            return
+
+        # Draw game objects
+        if self.player:
+            self.player.draw(surface)
+
         for enemy in self.enemies:
-            enemy.update(self.enemy_dir, self.enemy_speed)
-            if enemy.rect.right >= SCREEN_WIDTH - 10 or enemy.rect.left <= 10:
-                hit_edge = True
+            enemy.draw(surface)
 
-        if hit_edge:
-            self.enemy_dir *= -1
-            for enemy in self.enemies:
-                enemy.rect.y += ENEMY_DROP_DISTANCE
+        for bullet in self.bullets:
+            color = GREEN if bullet.is_player else RED
+            pygame.draw.rect(surface, color, bullet.rect)
 
-    def draw(self):
-        self.screen.fill(BLACK)
+        for barrier in self.barriers:
+            barrier.draw(surface)
 
-        if self.state == "PLAY":
-            # Draw Barriers
-            self.barriers.draw(self.screen)  # Custom draw loop in group or manual
+        for powerup in self.powerups:
+            pygame.draw.rect(surface, YELLOW, powerup.rect)
 
-            # Draw Player
-            self.screen.blit(self.player.image, self.player.rect)
+        # Draw particles
+        for particle in self.particles[:]:
+            pygame.draw.circle(surface, particle.color,
+                               (int(particle.x), int(particle.y)),
+                               int(particle.size))
+            if not particle.update():
+                self.particles.remove(particle)
 
-            # Draw Enemies
-            for enemy in self.enemies:
-                enemy.draw(self.screen)
+        # Draw warnings
+        for warning in self.warning_system.warnings:
+            text = self.warning_font.render(warning["message"], True, YELLOW)
+            surface.blit(text, (WIDTH // 2 - text.get_width() // 2, 100))
 
-            # Draw Mystery
-            self.mystery.draw(self.screen)
+        if self.warning_mode:
+            text = self.warning_font.render("WARNING MODE ACTIVE", True, RED)
+            surface.blit(text, (WIDTH // 2 - text.get_width() // 2, 50))
 
-            # Draw Bullets
-            for b in self.bullets:
-                self.screen.blit(b.image, b.rect)
-            for b in self.enemy_bullets:
-                self.screen.blit(b.image, b.rect)
+            # Draw security scan lines
+            for i in range(0, HEIGHT, 4):
+                pygame.draw.line(surface, (50, 0, 0), (0, i), (WIDTH, i), 1)
 
-            # HUD
-            text_score = self.font.render(f"Score: {self.score}", True, WHITE)
-            text_level = self.font.render(f"Level: {self.level}", True, WHITE)
-            text_lives = self.font.render(f"Lives: {self.player.lives}", True, WHITE)
-            self.screen.blit(text_score, (10, 10))
-            self.screen.blit(text_level, (SCREEN_WIDTH // 2, 10))
-            self.screen.blit(text_lives, (SCREEN_WIDTH - 100, 10))
+        # Draw UI
+        score_text = self.font.render(f"Score: {self.score}", True, WHITE)
+        lives_text = self.font.render(f"Lives: {self.lives}", True, WHITE)
+        level_text = self.font.render(f"Level: {self.level}", True, WHITE)
 
-        elif self.state == "START":
-            title = pygame.font.SysFont("arial", 50).render("SPACE INVADERS", True, GREEN)
-            sub = self.font.render("Press ENTER to Start", True, WHITE)
-            hs = self.font.render(f"High Score: {self.high_score}", True, YELLOW)
+        surface.blit(score_text, (10, 10))
+        surface.blit(lives_text, (10, 40))
+        surface.blit(level_text, (10, 70))
 
-            self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 200))
-            self.screen.blit(sub, (SCREEN_WIDTH // 2 - sub.get_width() // 2, 300))
-            self.screen.blit(hs, (SCREEN_WIDTH // 2 - hs.get_width() // 2, 350))
+        # Draw progress info
+        warning_text = self.font.render("WARNING SYSTEM ACTIVE", True, YELLOW)
+        surface.blit(warning_text, (WIDTH - warning_text.get_width() - 10, 10))
 
-        elif self.state == "GAMEOVER":
-            title = pygame.font.SysFont("arial", 50).render("GAME OVER", True, RED)
-            score = self.font.render(f"Final Score: {self.score}", True, WHITE)
-            msg = self.font.render("Press ENTER to Quit", True, WHITE)
+    def draw_menu(self, surface):
+        # Draw animated background
+        for i in range(0, HEIGHT, 20):
+            pygame.draw.line(surface, DARK_GRAY, (0, i), (WIDTH, i), 1)
 
-            self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 200))
-            self.screen.blit(score, (SCREEN_WIDTH // 2 - score.get_width() // 2, 300))
-            self.screen.blit(msg, (SCREEN_WIDTH // 2 - msg.get_width() // 2, 350))
+        title = self.large_font.render("SPACE INVADERS", True, CYAN)
+        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 100))
+
+        # Draw menu options
+        for i, option in enumerate(self.menu_options):
+            color = RED if i == self.selected_option else WHITE
+            text = self.font.render(option, True, color)
+            surface.blit(text, (WIDTH // 2 - text.get_width() // 2, 300 + i * 40))
+
+        warning = self.font.render("WARNING SYSTEM: ACTIVE", True, YELLOW)
+        surface.blit(warning, (WIDTH // 2 - warning.get_width() // 2, 500))
+
+    def draw_game_over(self, surface):
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.fill(BLACK)
+        overlay.set_alpha(128)
+        surface.blit(overlay, (0, 0))
+
+        text = self.large_font.render("GAME OVER", True, RED)
+        surface.blit(text, (WIDTH // 2 - text.get_width() // 2, 200))
+
+        warning_text = self.font.render("SECURITY WARNING: Unauthorized Access Detected!", True, YELLOW)
+        surface.blit(warning_text, (WIDTH // 2 - warning_text.get_width() // 2, 300))
+
+    def draw_level_complete(self, surface):
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.fill(BLACK)
+        overlay.set_alpha(128)
+        surface.blit(overlay, (0, 0))
+
+        text = self.large_font.render("LEVEL COMPLETE", True, GREEN)
+        surface.blit(text, (WIDTH // 2 - text.get_width() // 2, 200))
+
+        warning_text = self.font.render(f"WARNING: System Breach in Level {self.level}!", True, YELLOW)
+        surface.blit(warning_text, (WIDTH // 2 - warning_text.get_width() // 2, 300))
+
+
+# Create game instance
+game = SpaceInvadersGame()
+
+# Main game loop
+clock = pygame.time.Clock()
+running = True
+
+print("Starting Space Invaders - Enhanced Edition")
+print("WARNING SYSTEM: Active")
+print("SECURITY STATUS: Monitoring")
+
+try:
+    while running:
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                running = False
+
+        game.handle_events(events)
+        game.update()
+        game.draw(screen)
 
         pygame.display.flip()
+        clock.tick(60)
 
-    def run(self):
-        self.last_shoot = 0
-        while True:
-            self.clock.tick(FPS)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.high_score = max(self.high_score, self.score)
-                    self.save_highscore()
-                    pygame.quit()
-                    sys.exit()
-
-            self.handle_input()
-            self.update_logic()
-            self.draw()
-
-
-if __name__ == "__main__":
-    game = Game()
-    game.run()
+finally:
+    pygame.quit()
+    print("Game exited. Security data saved.")
+    save_data(game_data)
