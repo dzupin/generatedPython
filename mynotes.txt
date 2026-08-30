@@ -57,9 +57,17 @@ Write Space Invaders game in python using pygame library, make it visually appea
 ***********************************************************************************
 
 
-https://huggingface.co/RemySkye/Huihui-gemma-4-31B-it-qat-abliterated-MTP-NVFP4-GGUF/blob/main/Huihui-gemma-4-31B-it-qat-abliterated-NVFP4.gguf
 
-
+https://huggingface.co/cygnal/Qwen3.8-Flash-Next-Uncensored-IQ4XS-NGQ4-GGUF
+https://huggingface.co/mradermacher/Qwen3.8-Flash-Next-Uncensored-GGUF/blob/main/Qwen3.8-Flash-Next-Uncensored.IQ4_XS.gguf
+NOTE1: answers 2of2 total Excellent trivia and vivid story writing , 98.1 RAM, 19.6 t/s , Max 30.46 t/s
+NOTE2: Perfect analysis of celebrity images took 10 minutes to correctly identify Scarlet and one other guy 339 t/s | 29.9 t/s
+NOTE3: Excellent long  NSFW story from set of comics images (19 minutes) 368 t/s | 11.6 t/s
+NOTE4: Invaders python coder 4-shot but then has excellent graphics with sound 118.7.2RAM 26.8t/s (21.2K tokens, 13min)
+NOTE4A: SMALLER variant 109.9 RAM 24.2t/s Invaders python coder 4-shot but then has excellent graphics with sound 113.2RAM 26.8t/s (21.2K tokens, 13min)
+/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Qwen3.8-Flash-Next-Uncensored.IQ4_XS.gguf  --mmproj /AI/models/mmproj-Qwen3.8-Flash-Next-Uncensored-BF16.gguf
+SMALLER variant:
+/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Qwen3.8-Flash-Next-Uncensored.IQ4_XS.gguf  --mmproj /AI/models/mmproj-Qwen3.8-Flash-Next-Uncensored-BF16.gguf
 
 
 
@@ -71,12 +79,33 @@ NOTE1: Produced analysis of NSFW story. That provided excellent insights with pr
 NOTE2: No IMAGE support
 NOTE3: Invaders python coder 4-shot but then has excellent graphics with sound 113.2RAM 26.8t/s (21.2K tokens, 13min)
 NOTE4: Enhance Invaders python 0-shot flawless upgrade  114.3 RAM 21.9 t/s  (16.2K tokens, 10.5min)
+NOTE5: Successfully in 3 shots fixed several bugs in 1.6K long invaders code (
 BEST with Max REASONING (with DSpark)
 /AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1  --parallel 1  --temp 1.0 --top_p 1.0 --chat-template-kwargs '{"reasoning_effort":"max"}'  --spec-type draft-dspark   --spec-draft-n-max 3 --fit off  -md /AI/models/dspark-DeepSeek-V4-Flash-0731-BF16.gguf  --model /AI/models/Huihui-DeepSeek-V4-Flash-Q2-0731.gguf
 Slightly faster but LOWER Quality - High REASONING
 /AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1  --reasoning-preserve --parallel 1 --chat-template-kwargs '{"reasoning_effort":"high"}'  --spec-type draft-dspark   --spec-draft-n-max 3 --fit off  -md /AI/models/dspark-DeepSeek-V4-Flash-0731-BF16.gguf  --model /AI/models/Huihui-DeepSeek-V4-Flash-Q2-0731.gguf
 
 
+
+********WIP
+----------------- 9.998 / 10 MTP  UNCENSORED Quent3.8 256K BEST CODER 27B ( https://huggingface.co/zerodigest/Qwen3.8-27B-Uncensored-YMQ-MTP-GGUF/  ) (optimal tested MTP for this model is:  --spec-draft-n-max 7)
+NOTE1: Excellent NSFW answers and impressive story 2of2 with 200%, 57.4 RAM, 10.1 t/s
+NOTE2: Good analysis of celebrity images took 10 minutes to correctly identify Scarlet and one other guy 324 t/s | ??.3 t/s
+NOTE3: Best comprehensive super detailed and long  NSFW story from set of comics images (19 minutes) 354 t/s | 11.6 t/s
+NOTE3A: Excellent formatted text extraction from image, knows how to integrate emojis (25 seconds) RAM 375 t/s | 15.2 t/s
+NOTE4: BEST original NSFW style keeping story analysis, that provided excellent insights and NSFW language 67.0 RAM 496.2 t/s | 13.7 t/s
+NOTE5: Python 4-shots invader  fully working well crafter game with sound most advanced ever (73.5K tokens, 61 minutes) 580 t/s 19.8 t/s
+NOTE5A:  Python 0-shots invader enhancement impressive improvement for replayability (40.1K tokens, 61 minutes) 580 t/s 17.5 t/s
+NOTE5B:
+NOTE6: PASS thinking: I want to wash my car. The car wash is 50m away. Should I walk or drive ?  55.1 RAM 12.4 t/s
+NOTE7:  Excellent attention to pictures details when writing from set of images, precise recap of set of images story 60.5 RAM   350.8 t/s  18.7
+(UPDATED command:)
+NOTE: Success in fix code with speed 19.83/s for snipped or 36.29t/s for complete code using: Qwen3.8-27B-Uncensored-YMQ-XL.gguf
+/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Qwen3.8-27B-Uncensored-YMQ-XL.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf.
+SMALLER Model (46.4 RAM, 21.1t/s)
+/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Qwen3.8-27B-Uncensored-YMQ-M.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
+
+----
 
 
 
@@ -98,33 +127,6 @@ OPTIMIZED and with SPEED DFlash acceleration (24.2  t/s):
 
 
 
------------------ 9.998 / 10 MTP  UNCENSORED Quent3.8 256K BEST CODER 27B ( https://huggingface.co/huihui-ai/Huihui-Qwen3.8-27B-abliterated-GGUF/blob/main/Huihui-Qwen3.8-27B-abliterated-Q6_K_L.gguf ) (optimal tested MTP for this model is:  --spec-draft-n-max 7)
-NOTE1: Excellent NSFW answers and impressive story 2of2 with 200%, 57.4 RAM, 10.1 t/s
-NOTE2: Good analysis of celebrity images took 10 minutes to correctly identify Scarlet and one other guy 324 t/s | ??.3 t/s
-NOTE3: Best comprehensive super detailed and long  NSFW story from set of comics images (19 minutes) 354 t/s | 11.6 t/s
-NOTE3A: Excellent formatted text extraction from image, knows how to integrate emojis (25 seconds) RAM 375 t/s | 15.2 t/s
-NOTE4: BEST original NSFW style keeping story analysis, that provided excellent insights and NSFW language 67.0 RAM 496.2 t/s | 13.7 t/s
-NOTE5: Python 4-shots invader  fully working well crafter game with sound most advanced ever (73.5K tokens, 61 minutes) 580 t/s 19.8 t/s
-NOTE5A:  Python 0-shots invader enhancement impressive improvement for replayability (40.1K tokens, 61 minutes) 580 t/s 17.5 t/s
-NOTE5B:
-NOTE6: PASS thinking: I want to wash my car. The car wash is 50m away. Should I walk or drive ?  55.1 RAM 12.4 t/s
-NOTE7:  Excellent attention to pictures details when writing from set of images, precise recap of set of images story 60.5 RAM   350.8 t/s  18.7
-(UPDATED command:)
-/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Huihui-Qwen3.8-27B-abliterated-Q6_K_L.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
-LESS Thinking:
-/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "medium"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Huihui-Qwen3.8-27B-abliterated-Q6_K_L.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
-
-OTHER VARIANTS:
-/AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/huihui-qwen3.8-27b-abliterated-nvfp4-mtp.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
-
-
-
-
-
-
-
-
-https://www.modelscope.ai/models/unsloth/Qwen3.8-27B-GGUF/file/view/master/Qwen3.8-27B-UD-Q6_K_XL.gguf?status=2
 
 
 
@@ -145,7 +147,6 @@ LESS Thinking:
 /AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "medium"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Qwen3.8-27B-UD-Q6_K_XL.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
 FASTER:
 /AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "medium"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Qwen3.8-27B-IQ4_NL.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
-
 
 CODING (Longer and better python code):
 /AI/llama.cpp/build/bin/llama-server  -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 0.6 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 3 --parallel 1 --image-min-tokens 1024 --model /AI/models/Qwen3.8-27B-UD-Q6_K_XL.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
@@ -245,16 +246,18 @@ RECOMMENDED:
 
 
 -------------------------- 9.981 / 10   fast MTP thinking model that works well with NSFW images, stories,
-Starts at 64 GB RAM but each iteration takes little more RAM  gemma 4 (https://www.modelscope.ai/models/satgeze/Gemma4-31B-Uncensored-HauhauCS-1M-GGUF/resolve/master/gemma4-31b-uncensored-1M-Q4.gguf):
-NOTE: answers 2of2 with 380% excellent know-how and prose output, 63.9 RAM, 17.9 t/s
+from https://huggingface.co/EZForever/gemma-4-31B-it-qat-uncensored-heretic-UDmerge-GGUF/blob/main/gemma-4-31B-it-qat-uncensored-heretic-UDmerge-Q4_K_XXL.gguf:
+NOTE: answers 2of2 with 380% excellent know-how and prose output, 63.9 RAM, 21.74 t/s
 NOTE1:
-NOTE2: Well written SFW of NSFW story analysis, that provided excellent insights 64.7 RAM 540 t/s | 13.6 t/s
-NOTE3: Describe in detail content of provided image: have problem with celebrities but 100% the good SFW description 24.8 t/s
-NOTE4: Exceptionally good analysis of NSFW image and structured NSFW Flux2.dev prompting  20.5 t/s
+NOTE2: Well written SFW of NSFW story analysis, that provided excellent insights 64.7 RAM 511.63 t/s | 18.28 t/s
+NOTE3: Describe in detail content of provided image: only recognized Scarlett 27.05 t/s
+NOTE4: Exceptionally good analysis of NSFW image and structured NSFW Flux2.dev prompting  23.72 t/s
 NOTE5: Excellent NSFW image prompt generator that improve image with more shots to perfection 67.5 RAM 15.6 t/s  (WARNING: iteractions eats little of RAM)
-NOTE6: Shortened but insightful NSFW parts description in generating story from set of comics images  224 t/s 44.8 RAM 16.9 t/s
+NOTE6: Shortened but insightful NSFW parts description in generating story from set of comics images  226t/s 20.62 t/s
 NOTE7: OK coder 1-shot invaders but risk of running out of memory during long sessions  72.9 RAM 33.7 t/s
-/AI/llama.cpp/build/bin/llama-server --parallel 1  -ngl 999 --jinja -c 131072 --host 0.0.0.0  --port 5000 -fa 1  -md /AI/models/mtp-gemma4-31b-uncensored-1M-Q4.gguf --spec-type draft-mtp --spec-draft-n-max 6 --model /AI/models/gemma4-31b-uncensored-1M-Q4.gguf  --mmproj /AI/models/mmproj-gemma31b-hauhau.gguf
+NOTE8: Fix bug in long invader game  44.7 RAM 36.4 t/s
+ALTERNATIVE  (from https://huggingface.co/EZForever/gemma-4-31B-it-qat-uncensored-heretic-UDmerge-GGUF/blob/main/gemma-4-31B-it-qat-uncensored-heretic-UDmerge-Q4_K_XXL.gguf)
+/AI/llama.cpp/build/bin/llama-server --parallel 1  -ngl 999 --jinja -c 131072 --host 0.0.0.0  --port 5000 -fa 1  -md /AI/models/mtp-gemma4-31b-uncensored-1M-Q4.gguf --spec-type draft-mtp --spec-draft-n-max 6 --model /AI/models/gemma-4-31B-it-qat-uncensored-heretic-UDmerge-Q4_K_XXL.gguf  --mmproj /AI/models/mmproj-gemma31b-hauhau.gguf
 
 
 
@@ -823,15 +826,15 @@ cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=121 && cmake --build bu
 
 
 Compress ComfyUI:
-tar -I 'zstd -1 -T0' -cf ComfyUI_withoutModels_23Aug2026.tar.zst  /MyTEMP/ComfyUI
-tar -I 'zstd -1 -T0' -cf comfyui-env_23Aug026.tar.zst  /MyTEMP/comfyui-env
+tar -I 'zstd -1 -T0' -cf ComfyUI_withoutModels_30Aug2026.tar.zst  /MyTEMP/ComfyUI
+tar -I 'zstd -1 -T0' -cf comfyui-env_30Aug026.tar.zst  /MyTEMP/comfyui-env
 tar -I 'zstd -1 -T0' -cf llama.cpp_25Aug2026.tar.zst  llama.cpp
 
 
 
 Decompresss ComfyUI:
-tar -I 'zstd -T0' -xf ComfyUI_withoutModels_23Aug2026.tar.zst
-tar -I 'zstd -T0' -xf comfyui-env_23Aug026.tar.zst
+tar -I 'zstd -T0' -xf ComfyUI_withoutModels_30Aug2026.tar.zst
+tar -I 'zstd -T0' -xf comfyui-env_30Aug026.tar.zst
 tar -I 'zstd -T0' -xf llama.cpp_25Aug2026.tar.zst
 
 ******************************************************************
