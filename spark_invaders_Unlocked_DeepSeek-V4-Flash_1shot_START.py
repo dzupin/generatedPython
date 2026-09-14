@@ -5,7 +5,7 @@
 # /AI/models/dspark-DeepSeek-V4-Flash-0731-BF16.gguf   and  /AI/models/Huihui-DeepSeek-V4-Flash-Q2-0731.gguf
 #STATS: 12.594 generated tokens, time elapsed  7min:09s  29.33 t/s
 
-#Getting ERROR:
+#Getting ERROR is source code provided bellow:
 '''
 pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
 Hello from the pygame community. https://www.pygame.org/contribute.html

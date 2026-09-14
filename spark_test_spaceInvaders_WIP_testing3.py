@@ -1,1673 +1,1164 @@
 # PROMPT USED (create game baseline): Write Space Invaders game in python using pygame library, make it visually appealing but don't use any external files for resources (e.g. for graphic or for sound), but feel free to use external temp files or files to store game progress and stats. Make sure game will have barriers for user spaceship to hide, several levels bonus system to keep player engaged. Also include sound in game as well.
 # 0-shot  (best visuals for this game so far)
 # PROMPT FOLLOW UP (game enhancement):
-# Excellent. Python code is working correctly. Now update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. Don't use any external files (e.g. images) in your enhancements. Provide complete updated code.
-#  Provided Python code is working correctly. Treat this code as starting point. Refactor and update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. For visual enhancements do not use screen shake and also don't use screen overlays.  Don't use  external files for images or sound in your enhancements but feel free to use externally generated files for keeping , progress, score, configuration. etc.  Provide complete updated code.
+# Excellent. Python code is working correctly. Now update the code to make game even more addictive for end user to play. Implement permanent upgrades user can acquire by using point from each finished game.#  Provided Python code is working correctly. Treat this code as starting point. Refactor and update the code to make game more addictive for end user to play. Make sure that enhancements are visually appealing and  noticeable to end user and therefore more addictive to play. For visual enhancements do not use screen shake and also don't use screen overlays.  Don't use  external files for images or sound in your enhancements but feel free to use externally generated files for keeping , progress, score, configuration. etc.  Provide complete updated code.
 
 # /AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1 --temp 1.0 --top_p 0.95 --top_k 20 --min_p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0  --spec-type draft-mtp --spec-draft-n-max 7 --chat-template-kwargs '{"reasoning_effort": "xhigh"}' --image-min-tokens 1024 --reasoning-preserve --parallel 1  --model /AI/models/Huihui-Qwen3.8-27B-abliterated-Q6_K_L.gguf  --mmproj /AI/models/mmproj-Qwen3.8-27B-BF16.gguf
 
 
-import pygame
+#!/usr/bin/env python3
+"""
+SPACE INVADERS — Meta-Progression Edition
+A polished retro arcade shooter with:
+ - All graphics & audio synthesized at runtime (no asset downloads).
+ - config.json for parameters, progress.json for stats/high-score/credits.
+ - Destructible barriers, multiple levels, combo bonus system,
+   mystery bonus ship, power-ups, synthesized music.
+ - PERMANENT UPGRADES: earn credits each game and buy lasting upgrades.
+"""
 import math
 import random
 import json
 import os
-from array import array
+import sys
+import array
+import pygame
 
-WIDTH, HEIGHT = 800, 600
-FPS = 60
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except Exception:
+    HAS_NUMPY = False
 
-POWERUP_COLORS = {
-    '2X': (255, 210, 0),
-    'RAPID': (0, 200, 255),
-    'DOUBLE': (0, 255, 120),
-    'SHIELD': (120, 255, 120),
-    '1UP': (255, 120, 220),
+# ---------------------------------------------------------------------------
+# Configuration (written/read from config.json)
+# ---------------------------------------------------------------------------
+DEFAULT_CONFIG = {
+    "window": {"width": 960, "height": 720, "fps": 60},
+    "player": {
+        "speed": 6.0, "lives": 3, "bullet_speed": 13, "fire_cooldown": 0.30,
+        "rapid_fire_mult": 0.45, "rapid_duration": 6.0, "double_duration": 8.0
+    },
+    "alien": {
+        "base_speed": 0.55, "speed_per_level": 0.12,
+        "fire_chance": 0.004, "fire_chance_per_level": 0.001,
+        "max_rows": 7, "max_cols": 13,
+        "points": {"crab": 10, "squid": 20, "octopus": 30, "mystery": 100}
+    },
+    "barrier": {"count": 4, "rows": 12, "cols": 14, "hp": 3, "block_size": 7},
+    "bonus": {
+        "mystery_chance": 0.002, "powerup_chance": 0.06,
+        "combo_mult_step": 0.1, "combo_max_mult": 5.0,
+        "combo_reset_on_hit": True
+    },
+    "level": {"base": 1, "max": 12, "lives_gain": 1},
+    "audio": {"volume": 0.6, "music_volume": 0.45},
+    "upgrades": {
+        "extra_lives":   {"name": "Extra Lives",      "max": 3, "base_cost": 40, "cost_mult": 1.6},
+        "fire_rate":     {"name": "Fire Rate",        "max": 4, "base_cost": 30, "cost_mult": 1.5},
+        "bullet_speed":  {"name": "Bullet Speed",     "max": 5, "base_cost": 25, "cost_mult": 1.5},
+        "player_speed":  {"name": "Player Speed",     "max": 4, "base_cost": 25, "cost_mult": 1.5},
+        "barrier_hp":    {"name": "Barrier HP",       "max": 3, "base_cost": 45, "cost_mult": 1.7},
+        "combo_bonus":   {"name": "Combo Bonus",      "max": 4, "base_cost": 35, "cost_mult": 1.6},
+        "score_bonus":   {"name": "Score Multiplier", "max": 5, "base_cost": 20, "cost_mult": 1.5},
+        "start_shield":  {"name": "Starting Shield",  "max": 3, "base_cost": 50, "cost_mult": 1.8},
+        "mystery_bonus": {"name": "Mystery Ships",    "max": 3, "base_cost": 40, "cost_mult": 1.7},
+        "powerup_luck":  {"name": "Power-Up Luck",    "max": 4, "base_cost": 35, "cost_mult": 1.6},
+    },
+    "save_file": "progress.json",
+    "config_file": "config.json"
 }
 
-POWERUP_LABELS = {
-    '2X': '2X',
-    'RAPID': 'SPD',
-    'DOUBLE': 'DUAL',
-    'SHIELD': 'WALL',
-    '1UP': '1UP',
-}
 
-
-def get_stats_file():
-    try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(script_dir, 'space_invaders_stats.json')
-        if os.access(script_dir, os.W_OK):
-            return path
-    except Exception:
-        pass
-    return os.path.join(os.path.expanduser('~'), 'space_invaders_stats.json')
-
-
-STATS_FILE = get_stats_file()
-
-
-def load_stats():
-    stats = {
-        'best_score': 0,
-        'games_played': 0,
-        'max_level': 0,
-        'total_kills': 0,
-        'total_bonuses': 0,
-        'total_powerups': 0,
-        'total_time': 0
-    }
-
-    try:
-        with open(STATS_FILE, 'r') as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            for k in stats:
-                stats[k] = data.get(k, stats[k])
-    except Exception:
-        pass
-
-    return stats
-
-
-def save_stats(stats):
-    try:
-        with open(STATS_FILE, 'w') as f:
-            json.dump(stats, f, indent=2)
-    except Exception:
-        pass
-
-class SFX:
-    def __init__(self):
-        self.enabled = False
-        self.sounds = {}
-
+def load_config():
+    cfg_file = DEFAULT_CONFIG["config_file"]
+    cfg = json.loads(json.dumps(DEFAULT_CONFIG))
+    if os.path.exists(cfg_file):
         try:
-            # If the mixer was not initialized by main(), try to initialize it now.
-            if pygame.mixer.get_init() is None:
-                pygame.mixer.init(44100, -16, 2, 512)
-
-            init = pygame.mixer.get_init()
-            if not init:
-                print("[SFX] mixer is not initialized")
-                return
-
-            self.freq, self.format, self.channels = init
-            self.sr = int(self.freq)
-
-            try:
-                pygame.mixer.set_num_channels(16)
-            except Exception:
-                pass
-
-            print(
-                f"[SFX] mixer ok: "
-                f"{self.freq} Hz, "
-                f"format={self.format}, "
-                f"channels={self.channels}"
-            )
-
-            self._build()
-            self.enabled = any(s is not None for s in self.sounds.values())
-
-            # Short test beep so you know sound initialization worked.
-            if self.enabled:
-                self.play("select", 0.5)
-
-        except Exception as e:
-            print(f"[SFX] init failed: {e}")
-            self.enabled = False
-
-    def toggle(self):
-        self.enabled = not self.enabled
-        return self.enabled
-
-    def play(self, name, volume=0.6):
-        if not self.enabled:
-            return
-
-        snd = self.sounds.get(name)
-        if snd is None:
-            return
-
-        try:
-            snd.set_volume(max(0.0, min(1.0, volume)))
-            snd.play()
+            with open(cfg_file) as f:
+                user = json.load(f)
+            for k, v in user.items():
+                if isinstance(cfg.get(k), dict) and isinstance(v, dict):
+                    cfg[k].update(v)
+                else:
+                    cfg[k] = v
         except Exception:
             pass
-
-    def _build(self):
-        def mono_to_pcm(samples):
-            """
-            Convert generated 16-bit mono samples into the exact PCM format
-            currently used by pygame.mixer.
-            """
-            fmt = self.format
-
-            if fmt == -16:
-                converted = array("h", samples)
-            elif fmt == -32:
-                converted = array("i", (int(s) * 32768 for s in samples))
-            elif fmt == 16:
-                converted = array("H", (int(s) + 32768 for s in samples))
-            elif fmt == 8:
-                converted = array(
-                    "B",
-                    (max(0, min(255, (int(s) + 32768) // 257)) for s in samples)
-                )
-            else:
-                converted = array("h", samples)
-
-            if self.channels == 2:
-                stereo = array(converted.typecode)
-                for s in converted:
-                    stereo.append(s)
-                    stereo.append(s)
-                converted = stereo
-
-            return converted
-
-        def finish(samples):
-            try:
-                pcm = mono_to_pcm(samples)
-
-                # Try several buffer styles because pygame versions/builds
-                # can be picky here.
-                for buf in (bytearray(pcm), pcm.tobytes(), pcm):
-                    try:
-                        snd = pygame.mixer.Sound(buffer=buf)
-                        if snd.get_length() > 0:
-                            snd.set_volume(1.0)
-                            return snd
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-            return None
-
-        def tone(freq, duration, volume=0.4, shape="sine", slide_to=None, decay=0.0):
-            n = max(1, int(self.sr * duration))
-            a = array("h", [0]) * n
-
-            for i in range(n):
-                t = i / self.sr
-                frac = i / n
-
-                if slide_to is not None:
-                    f = freq + (slide_to - freq) * frac
-                else:
-                    f = freq
-
-                if shape == "sine":
-                    v = math.sin(2.0 * math.pi * f * t)
-                elif shape == "square":
-                    v = 1.0 if math.sin(2.0 * math.pi * f * t) >= 0.0 else -1.0
-                else:
-                    v = 0.0
-
-                fade_in = min(1.0, i / (0.005 * self.sr) + 1e-6)
-                fade_out = min(1.0, (n - i) / (0.05 * self.sr) + 1e-6)
-                env = min(fade_in, fade_out)
-
-                if decay > 0:
-                    env *= max(0.0, (1.0 - frac) ** decay)
-
-                sample = int(v * volume * env * 32767)
-                a[i] = max(-32768, min(32767, sample))
-
-            return a
-
-        def noise(duration, volume=0.4, lowpass=0.2):
-            n = max(1, int(self.sr * duration))
-            a = array("h", [0]) * n
-            last = 0.0
-
-            for i in range(n):
-                white = random.uniform(-1.0, 1.0)
-                last += lowpass * (white - last)
-
-                env = min(1.0, (n - i) / (0.05 * self.sr) + 1e-6)
-                env *= max(0.0, (1.0 - i / n) ** 1.2)
-
-                sample = int(last * volume * env * 32767)
-                a[i] = max(-32768, min(32767, sample))
-
-            return a
-
-        def mix(*parts):
-            if not parts:
-                return array("h", [0])
-
-            max_len = max(len(p) for p in parts)
-            out = array("h", [0]) * max_len
-
-            for p in parts:
-                for i in range(len(p)):
-                    v = out[i] + p[i]
-                    if v > 32767:
-                        v = 32767
-                    elif v < -32768:
-                        v = -32768
-                    out[i] = v
-
-            return out
-
-        def seq(*parts):
-            out = array("h")
-            for p in parts:
-                out.extend(p)
-            return out
-
-        self.sounds["shoot"] = finish(
-            tone(900, 0.08, 0.35, "square", 220, 1.2)
-        )
-
-        self.sounds["step1"] = finish(
-            tone(130, 0.06, 0.55, "square", 85, 1.5)
-        )
-
-        self.sounds["step2"] = finish(
-            tone(100, 0.06, 0.55, "square", 60, 1.5)
-        )
-
-        self.sounds["hit"] = finish(
-            mix(
-                tone(500, 0.12, 0.45, "square", 130, 2.0),
-                noise(0.12, 0.35, 0.4)
-            )
-        )
-
-        self.sounds["player"] = finish(
-            mix(
-                noise(0.6, 0.8, 0.2),
-                tone(180, 0.55, 0.6, "sine", 40, 1.5)
-            )
-        )
-
-        self.sounds["shield"] = finish(
-            tone(1600, 0.05, 0.3, "square", 700, 2.0)
-        )
-
-        self.sounds["bonus"] = finish(
-            seq(
-                tone(660, 0.08, 0.4, "square"),
-                tone(880, 0.08, 0.4, "square"),
-                tone(1320, 0.12, 0.45, "square")
-            )
-        )
-
-        self.sounds["level"] = finish(
-            seq(
-                tone(523, 0.08, 0.35, "square"),
-                tone(659, 0.08, 0.35, "square"),
-                tone(784, 0.08, 0.35, "square"),
-                tone(1046, 0.15, 0.4, "square")
-            )
-        )
-
-        self.sounds["gameover"] = finish(
-            seq(
-                tone(392, 0.15, 0.4, "sine"),
-                tone(330, 0.15, 0.4, "sine"),
-                tone(262, 0.15, 0.4, "sine"),
-                tone(196, 0.3, 0.45, "sine")
-            )
-        )
-
-        self.sounds["select"] = finish(
-            tone(1200, 0.06, 0.3, "square", 700, 2.0)
-        )
-
-        self.sounds["ufo"] = finish(
-            tone(600, 0.15, 0.3, "sine", 900, 0.5)
-        )
-
-
-def make_font(size, bold=True):
-    try:
-        return pygame.font.SysFont('arial', size, bold=bold)
-    except Exception:
-        return pygame.font.Font(None, size)
-
-
-def make_background():
-    bg = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-
-    top = (8, 10, 32)
-    bottom = (28, 8, 50)
-
-    for y in range(HEIGHT):
-        t = y / HEIGHT
-        r = int(top[0] + (bottom[0] - top[0]) * t)
-        g = int(top[1] + (bottom[1] - top[1]) * t)
-        b = int(top[2] + (bottom[2] - top[2]) * t)
-        pygame.draw.line(bg, (r, g, b), (0, y), (WIDTH, y))
-
-    for _ in range(8):
-        radius = random.randint(80, 180)
-        x = random.randint(0, WIDTH)
-        y = random.randint(0, HEIGHT)
-        col = random.choice([
-            (40, 20, 70),
-            (20, 40, 80),
-            (70, 20, 60)
-        ])
-
-        neb = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-
-        for i in range(radius, 0, -1):
-            alpha = int(18 * (i / radius))
-            pygame.draw.circle(
-                neb,
-                (col[0], col[1], col[2], alpha),
-                (radius, radius),
-                i
-            )
-
-        bg.blit(neb, (x - radius, y - radius))
-
-    return bg
-
-
-def make_player_sprite():
-    s = pygame.Surface((40, 26), pygame.SRCALPHA)
-
-    pygame.draw.ellipse(s, (0, 150, 255, 45), (-2, -2, 44, 30))
-    pygame.draw.polygon(s, (10, 220, 255), [
-        (20, 2),
-        (34, 24),
-        (26, 24),
-        (22, 12),
-        (18, 12),
-        (14, 24),
-        (6, 24)
-    ])
-    pygame.draw.polygon(s, (0, 110, 200), [
-        (20, 6),
-        (30, 22),
-        (25, 22),
-        (22, 13),
-        (18, 13),
-        (15, 22),
-        (10, 22)
-    ])
-    pygame.draw.rect(s, (220, 255, 255), (18, 8, 4, 8))
-    pygame.draw.rect(s, (255, 80, 120), (8, 18, 4, 4))
-    pygame.draw.rect(s, (255, 80, 120), (28, 18, 4, 4))
-
-    return s
-
-
-def make_invader_sprite(kind, frame, color):
-    s = pygame.Surface((32, 24), pygame.SRCALPHA)
-
-    dark = tuple(max(0, c - 80) for c in color)
-    light = tuple(min(255, c + 60) for c in color)
-
-    pygame.draw.ellipse(s, (*color, 35), (0, 0, 32, 24))
-
-    if kind == 0:
-        pygame.draw.polygon(s, color, [
-            (16, 3),
-            (28, 11),
-            (26, 19),
-            (6, 19),
-            (4, 11)
-        ])
-        pygame.draw.polygon(s, dark, [
-            (16, 6),
-            (24, 11),
-            (22, 17),
-            (10, 17),
-            (8, 11)
-        ])
-
-        pygame.draw.circle(s, (255, 255, 255), (11, 12), 3)
-        pygame.draw.circle(s, dark, (11, 12), 1)
-        pygame.draw.circle(s, (255, 255, 255), (21, 12), 3)
-        pygame.draw.circle(s, dark, (21, 12), 1)
-
-        if frame == 0:
-            legs = [(7, 19), (13, 19), (19, 19), (25, 19)]
-        else:
-            legs = [(9, 19), (15, 19), (21, 19), (27, 19)]
-
-        for x, y in legs:
-            pygame.draw.line(s, light, (x, y), (x, y + 4), 2)
-
-    elif kind == 1:
-        pygame.draw.ellipse(s, color, (4, 5, 24, 14))
-        pygame.draw.ellipse(s, dark, (8, 8, 16, 8))
-
-        pygame.draw.circle(s, (255, 255, 255), (11, 11), 3)
-        pygame.draw.circle(s, dark, (11, 11), 1)
-        pygame.draw.circle(s, (255, 255, 255), (21, 11), 3)
-        pygame.draw.circle(s, dark, (21, 11), 1)
-
-        if frame == 0:
-            pygame.draw.line(s, light, (10, 5), (8, 0), 2)
-            pygame.draw.line(s, light, (22, 5), (24, 0), 2)
-        else:
-            pygame.draw.line(s, light, (10, 5), (12, 0), 2)
-            pygame.draw.line(s, light, (22, 5), (20, 0), 2)
-
-        if frame == 0:
-            legs = [(8, 19), (14, 19), (18, 19), (24, 19)]
-        else:
-            legs = [(10, 19), (16, 19), (20, 19), (26, 19)]
-
-        for x, y in legs:
-            pygame.draw.line(s, light, (x, y), (x, y + 4), 2)
-
     else:
-        pygame.draw.rect(s, color, (5, 6, 22, 14), border_radius=3)
-        pygame.draw.rect(s, dark, (8, 9, 16, 8), border_radius=2)
+        try:
+            with open(cfg_file, "w") as f:
+                json.dump(DEFAULT_CONFIG, f, indent=2)
+        except Exception:
+            pass
+    return cfg
 
-        pygame.draw.circle(s, (255, 255, 255), (11, 12), 3)
-        pygame.draw.circle(s, dark, (11, 12), 1)
-        pygame.draw.circle(s, (255, 255, 255), (21, 12), 3)
-        pygame.draw.circle(s, dark, (21, 12), 1)
 
-        if frame == 0:
-            legs = [(8, 20), (14, 20), (18, 20), (24, 20)]
+def load_progress():
+    save_file = DEFAULT_CONFIG["save_file"]
+    if os.path.exists(save_file):
+        try:
+            with open(save_file) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "high_score": 0, "best_level": 0, "games_played": 0,
+        "total_shots": 0, "total_kills": 0, "total_time": 0.0,
+        "credits": 0, "upgrades": {}
+    }
+
+
+def save_progress(p):
+    try:
+        with open(DEFAULT_CONFIG["save_file"], "w") as f:
+            json.dump(p, f, indent=2)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Audio synthesis (no external sound files needed)
+# ---------------------------------------------------------------------------
+def samples_to_buffer(samples):
+    if HAS_NUMPY:
+        arr = (np.clip(np.asarray(samples, dtype=float), -1.0, 1.0) * 32767).astype(np.int16)
+        return arr.tobytes()
+    arr = array.array("h", (int(max(-1.0, min(1.0, s)) * 32767) for s in samples))
+    return arr.tobytes()
+
+
+def gen_tone(freq, dur, wave="square", vol=0.5, decay=True):
+    rate = 22050
+    n = int(rate * dur)
+    if HAS_NUMPY:
+        t = np.arange(n) / rate
+        if wave == "square":
+            sig = np.sign(np.sin(2 * np.pi * freq * t))
+        elif wave == "saw":
+            sig = 2 * ((t * freq) % 1.0) - 1.0
+        elif wave == "triangle":
+            sig = 2 * np.abs(2 * ((t * freq) % 1.0) - 1.0) - 1.0
         else:
-            legs = [(10, 20), (16, 20), (20, 20), (26, 20)]
-
-        for x, y in legs:
-            pygame.draw.line(s, light, (x, y), (x, y + 3), 2)
-
-    return s
-
-
-def make_bullet_sprite(color):
-    s = pygame.Surface((8, 18), pygame.SRCALPHA)
-    pygame.draw.ellipse(s, (*color, 80), (0, 0, 8, 18))
-    pygame.draw.rect(s, color, (3, 2, 2, 14), border_radius=1)
-    pygame.draw.rect(s, (255, 255, 255), (3, 4, 2, 8))
-    return s
-
-
-def make_bomb_sprite(color):
-    s = pygame.Surface((10, 20), pygame.SRCALPHA)
-    pygame.draw.ellipse(s, (*color, 80), (0, 0, 10, 20))
-
-    for y in range(2, 18, 4):
-        pygame.draw.rect(s, color, (4, y, 2, 4))
-
-    pygame.draw.rect(s, (255, 255, 255), (4, 4, 2, 3))
-    return s
+            sig = np.sin(2 * np.pi * freq * t)
+        if decay:
+            sig *= np.exp(-t / (dur * 0.15 + 1e-6))
+        sig *= vol
+        return samples_to_buffer(sig)
+    samples = []
+    for i in range(n):
+        t = i / rate
+        if wave == "square":
+            v = 1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0
+        elif wave == "saw":
+            v = 2 * ((t * freq) % 1.0) - 1.0
+        elif wave == "triangle":
+            v = 2 * abs(2 * ((t * freq) % 1.0) - 1.0) - 1.0
+        else:
+            v = math.sin(2 * math.pi * freq * t)
+        if decay:
+            v *= math.exp(-t / (dur * 0.15 + 1e-6))
+        samples.append(v * vol)
+    return samples_to_buffer(samples)
 
 
-def make_ufo_sprite():
-    s = pygame.Surface((52, 24), pygame.SRCALPHA)
-
-    pygame.draw.ellipse(s, (255, 100, 100, 50), (0, 0, 52, 24))
-    pygame.draw.ellipse(s, (255, 120, 120), (4, 8, 44, 14))
-    pygame.draw.ellipse(s, (255, 180, 180), (12, 4, 28, 10))
-
-    for x in [10, 18, 26, 34, 42]:
-        pygame.draw.circle(s, (255, 255, 255), (x, 16), 2)
-
-    return s
-
-
-def make_powerup_sprite(kind):
-    s = pygame.Surface((34, 26), pygame.SRCALPHA)
-    rect = s.get_rect()
-    color = POWERUP_COLORS[kind]
-    label = POWERUP_LABELS[kind]
-
-    pygame.draw.rect(s, (*color, 220), rect, border_radius=7)
-    pygame.draw.rect(s, (255, 255, 255, 120), rect, 2, border_radius=7)
-
-    font = make_font(13, True)
-    text = font.render(label, True, (255, 255, 255))
-    shadow = font.render(label, True, (0, 0, 0))
-
-    pos = text.get_rect(center=s.get_rect().center)
-    s.blit(shadow, pos.move(1, 1))
-    s.blit(text, pos)
-
-    return s
+def gen_noise(dur, vol=0.5, decay=True):
+    rate = 22050
+    n = int(rate * dur)
+    if HAS_NUMPY:
+        sig = np.random.uniform(-1, 1, n)
+        if decay:
+            sig *= np.exp(-np.arange(n) / (rate * dur * 0.15 + 1e-6))
+        sig *= vol
+        return samples_to_buffer(sig)
+    samples = [random.uniform(-1, 1) for _ in range(n)]
+    for i in range(n):
+        if decay:
+            samples[i] *= math.exp(-(i / rate) / (dur * 0.15 + 1e-6))
+        samples[i] *= vol
+    return samples_to_buffer(samples)
 
 
-class Shield:
-    def __init__(self, x, y):
-        self.w = 72
-        self.h = 48
-        self.rect = pygame.Rect(x, y, self.w, self.h)
-        self.shield = self._make_base()
+def gen_sweep(f0, f1, dur, vol=0.5, wave="square"):
+    rate = 22050
+    n = int(rate * dur)
+    if HAS_NUMPY:
+        t = np.arange(n) / rate
+        freq = f0 + (f1 - f0) * (t / dur)
+        sig = np.sign(np.sin(2 * np.pi * freq * t))
+        sig *= np.exp(-t / (dur * 0.2 + 1e-6))
+        sig *= vol
+        return samples_to_buffer(sig)
+    samples = []
+    phase = 0.0
+    for i in range(n):
+        t = i / rate
+        freq = f0 + (f1 - f0) * (t / dur)
+        phase += 2 * math.pi * freq / rate
+        v = (1.0 if math.sin(phase) >= 0 else -1.0)
+        v *= math.exp(-t / (dur * 0.2 + 1e-6)) * vol
+        samples.append(v)
+    return samples_to_buffer(samples)
 
-    def _make_base(self):
-        s = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
 
-        pygame.draw.rect(s, (0, 180, 120, 190), s.get_rect(), border_radius=8)
-        pygame.draw.rect(s, (0, 255, 150, 255), s.get_rect().inflate(-6, -6), border_radius=6)
-        pygame.draw.rect(s, (170, 255, 225, 210), s.get_rect().inflate(-14, -14), border_radius=4)
+def generate_music():
+    """Synthesize a short looping chiptune melody + bass, all in Python."""
+    rate = 22050
+    bpm = 120
+    beat = 60.0 / bpm
+    melody = [
+        (523.25, 0.5), (587.33, 0.5), (659.25, 0.5), (587.33, 0.5),
+        (523.25, 0.5), (587.33, 0.5), (659.25, 1.0),
+        (698.46, 0.5), (659.25, 0.5), (587.33, 0.5), (523.25, 0.5),
+        (440.0, 1.0), (440.0, 0.5), (523.25, 0.5), (587.33, 1.0), (659.25, 1.0),
+    ]
+    bass = [
+        (130.81, 0.5), (130.81, 0.5), (98.0, 0.5), (130.81, 0.5),
+        (130.81, 0.5), (130.81, 0.5), (98.0, 0.5), (130.81, 0.5),
+        (130.81, 0.5), (130.81, 0.5), (98.0, 0.5), (130.81, 0.5),
+        (98.0, 0.5), (98.0, 0.5), (87.31, 0.5), (98.0, 0.5),
+    ]
+    total_beats = sum(m[1] for m in melody)
+    total_dur = total_beats * beat
+    n = int(rate * total_dur)
+    buf = [0.0] * n
 
-        self._clear_rect(s, self.w // 2 - 10, self.h // 2, 20, self.h // 2)
-        self._clear_rect(s, 0, self.h - 16, 10, 16)
-        self._clear_rect(s, self.w - 10, self.h - 16, 10, 16)
+    pos = 0.0
+    for freq, beats in melody:
+        dur = beats * beat
+        start = int(pos * rate)
+        end = min(n, int((pos + beats) * rate))
+        for i in range(start, end):
+            t = (i - start) / rate
+            env = math.exp(-t / (dur * 0.4 + 1e-6))
+            buf[i] += 0.35 * (1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0) * env
+        pos += beats
 
-        return s
+    pos = 0.0
+    for freq, beats in bass:
+        dur = beats * beat
+        start = int(pos * rate)
+        end = min(n, int((pos + beats) * rate))
+        for i in range(start, end):
+            t = (i - start) / rate
+            env = math.exp(-t / (dur * 0.5 + 1e-6))
+            buf[i] += 0.22 * (1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0) * env
+        pos += beats
 
-    def _clear_rect(self, s, x, y, w, h):
-        for py in range(max(0, y), min(self.h, y + h)):
-            for px in range(max(0, x), min(self.w, x + w)):
-                if s.get_at((px, py))[3] > 0:
-                    s.set_at((px, py), (0, 0, 0, 0))
+    maxv = max(abs(v) for v in buf) if buf else 1.0
+    buf = [v / maxv for v in buf]
+    return samples_to_buffer(buf)
 
-    def _clear_circle(self, cx, cy, radius):
-        cx = int(cx)
-        cy = int(cy)
-        radius = int(radius)
 
-        for dy in range(-radius, radius + 1):
-            y = cy + dy
-            if 0 <= y < self.h:
-                for dx in range(-radius, radius + 1):
-                    x = cx + dx
-                    if 0 <= x < self.w and dx * dx + dy * dy <= radius * radius:
-                        if self.shield.get_at((x, y))[3] > 0:
-                            self.shield.set_at((x, y), (0, 0, 0, 0))
+# ---------------------------------------------------------------------------
+# Procedural graphics generation
+# ---------------------------------------------------------------------------
+def make_glow(surf, center, radius, color, alpha):
+    for i in range(radius, 1, -3):
+        a = int(alpha * (i / radius))
+        pygame.draw.circle(surf, (*color, a), center, i)
 
-    def repair(self):
-        self.shield = self._make_base()
 
-    def is_solid_at(self, point):
-        x = point[0] - self.rect.x
-        y = point[1] - self.rect.y
+def make_background(w, h):
+    surf = pygame.Surface((w, h))
+    for y in range(h):
+        t = y / h
+        r = int(8 + 4 * t)
+        g = int(10 + 6 * t)
+        b = int(34 + 12 * t)
+        pygame.draw.line(surf, (r, g, b), (0, y), (w, y))
+    return surf
 
-        if 0 <= x < self.w and 0 <= y < self.h:
-            return self.shield.get_at((int(x), int(y)))[3] > 25
 
-        return False
+def make_player_ship():
+    surf = pygame.Surface((72, 72), pygame.SRCALPHA)
+    make_glow(surf, (36, 46), 30, (0, 220, 255), 80)
+    make_glow(surf, (36, 62), 16, (0, 120, 255), 120)
+    pygame.draw.polygon(surf, (0, 180, 240), [(36, 8), (10, 52), (28, 58)])
+    pygame.draw.polygon(surf, (0, 180, 240), [(36, 8), (62, 52), (44, 58)])
+    pygame.draw.polygon(surf, (0, 220, 255), [(36, 8), (22, 50), (36, 64), (50, 50)])
+    pygame.draw.polygon(surf, (255, 255, 255), [(36, 14), (31, 36), (36, 40), (41, 36)])
+    pygame.draw.polygon(surf, (0, 160, 255), [(30, 62), (36, 70), (42, 62)])
+    pygame.draw.polygon(surf, (180, 240, 255), [(32, 62), (36, 66), (40, 62)])
+    return surf
 
-    def damage(self, point, radius=9):
-        cx = point[0] - self.rect.x
-        cy = point[1] - self.rect.y
 
-        self._clear_circle(cx, cy, radius)
+CRAB = [
+    "..X.....X..",
+    "X..X...X..X",
+    "XXXXX.XXXXX",
+    "..X.....X..",
+    ".XXXXX.XXXX",
+    "XX.XXX.XXX.",
+    ".X.....X...",
+    "X.......X..",
+]
+SQUID = [
+    "..XX...XX..",
+    ".XXXX.XXXX.",
+    "XX....X..XX",
+    "..X..X..X..",
+    ".XXXX.XXXX.",
+    "X..X...X..X",
+    "X.........X",
+    "X.........X",
+]
+OCT = [
+    "XX...XX...XX",
+    "XX..XXX..XX.",
+    "XX.XXXXX.XX.",
+    "...XXXXX...",
+    ".XXXX.XXXX.",
+    "XXX...X..XX.",
+    "X.....X...X.",
+    "X.........X.",
+]
 
-        for _ in range(4):
-            rx = cx + random.randint(-radius, radius)
-            ry = cy + random.randint(-radius, radius)
-            self._clear_circle(rx, ry, 2)
 
-        return True
+def make_alien(pattern, color, scale=3, glow=True):
+    rows = len(pattern)
+    cols = max(len(line) for line in pattern)
+    surf = pygame.Surface((cols * scale, rows * scale), pygame.SRCALPHA)
+    if glow:
+        make_glow(surf, (cols * scale // 2, rows * scale // 2),
+                  cols * scale // 2 + 4, color, 40)
+    for r, line in enumerate(pattern):
+        for c, ch in enumerate(line):
+            if ch == "X":
+                pygame.draw.rect(surf, color, (c * scale, r * scale, scale, scale))
+    return surf
+
+
+def make_mystery_ship():
+    surf = pygame.Surface((48, 24), pygame.SRCALPHA)
+    make_glow(surf, (24, 12), 22, (255, 40, 40), 60)
+    pygame.draw.polygon(surf, (255, 60, 60), [(24, 2), (8, 14), (40, 14)])
+    pygame.draw.polygon(surf, (255, 180, 60), [(8, 14), (16, 22), (32, 22), (40, 14)])
+    pygame.draw.rect(surf, (255, 255, 255), (18, 6, 12, 4))
+    return surf
+
+
+def shield_pattern(rows, cols):
+    pattern = []
+    for r in range(rows):
+        line = []
+        yf = r / (rows - 1)
+        wf = 0.22 + 0.78 * math.sin(math.pi * 0.5 * yf)
+        half = cols / 2.0
+        for c in range(cols):
+            dx = abs(c - (cols - 1) / 2.0) / half
+            present = dx <= wf
+            if yf > 0.55 and abs(c - (cols - 1) / 2.0) < cols * 0.14:
+                present = False
+            line.append(1 if present else 0)
+        pattern.append(line)
+    return pattern
+
+
+def make_powerup_image(ptype, size=40):
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+    colors = {
+        "rapid": (255, 180, 40), "double": (80, 200, 255),
+        "shield": (60, 220, 120), "life": (255, 80, 120),
+        "score": (200, 120, 255),
+    }
+    color = colors.get(ptype, (255, 255, 255))
+    make_glow(surf, (size // 2, size // 2), size // 2, color, 60)
+    pygame.draw.rect(surf, color, (8, 8, size - 16, size - 16), border_radius=8)
+    pygame.draw.rect(surf, (255, 255, 255), (8, 8, size - 16, size - 16), 2, border_radius=8)
+    label = {"rapid": "R", "double": "D", "shield": "S", "life": "+", "score": "$"}
+    fnt = pygame.font.Font(None, 24)
+    txt = fnt.render(label.get(ptype, "?"), True, (255, 255, 255))
+    surf.blit(txt, (size // 2 - txt.get_width() // 2, size // 2 - txt.get_height() // 2))
+    return surf
+
+
+# ---------------------------------------------------------------------------
+# Game objects
+# ---------------------------------------------------------------------------
+class Player:
+    def __init__(self, cfg, screen_h, eff):
+        self.cfg = cfg
+        self.eff = eff
+        self.image = make_player_ship()
+        self.rect = self.image.get_rect()
+        self.rect.midbottom = (cfg["window"]["width"] // 2, screen_h - 24)
+        self.x = float(self.rect.x)
+        self.lives = eff.get("lives", cfg["player"]["lives"])
+        self.fire_timer = 0.0
+        self.rapid_timer = 0.0
+        self.double_timer = 0.0
+        self.shield = 0  # int: number of shield charges
+
+    def update(self, dt, keys, width):
+        speed = self.eff.get("speed", self.cfg["player"]["speed"])
+        if keys[pygame.K_LEFT]:
+            self.x -= speed * dt * 60
+        if keys[pygame.K_RIGHT]:
+            self.x += speed * dt * 60
+        self.x = max(10, min(width - self.rect.width - 10, self.x))
+        self.rect.x = int(self.x)
+        self.fire_timer = max(0.0, self.fire_timer - dt)
+        self.rapid_timer = max(0.0, self.rapid_timer - dt)
+        self.double_timer = max(0.0, self.double_timer - dt)
+
+    def can_fire(self):
+        return self.fire_timer <= 0.0
+
+    def fire(self):
+        self.fire_timer = self.eff.get("fire_cooldown", self.cfg["player"]["fire_cooldown"])
+        if self.rapid_timer > 0:
+            self.fire_timer *= self.cfg["player"]["rapid_fire_mult"]
+
+    def reset_timers(self):
+        self.rapid_timer = 0
+        self.double_timer = 0
+
+
+class Alien:
+    def __init__(self, x, y, typ, image, points, level):
+        self.x = float(x)
+        self.y = float(y)
+        self.typ = typ
+        self.image = image
+        self.rect = image.get_rect()
+        self.rect.x = int(x)
+        self.rect.y = int(y)
+        self.points = points
+        self.alive = True
 
 
 class Bullet:
-    def __init__(self, x, y, game):
-        self.rect = pygame.Rect(int(x) - 4, int(y) - 18, 8, 18)
-        self.vel = pygame.Vector2(0, -520)
-        self.alive = True
-        self.game = game
+    def __init__(self, x, y, owner, speed, width, height):
+        self.owner = owner
+        if owner == "player":
+            self.rect = pygame.Rect(x, y, 4, 16)
+            self.vy = -speed
+            self.color = (0, 255, 255)
+        else:
+            self.rect = pygame.Rect(x, y, 6, 12)
+            self.vy = speed
+            self.color = (255, 80, 60)
 
     def update(self, dt):
-        self.rect.y += int(round(self.vel.y * dt))
+        self.rect.y += self.vy * dt * 60
 
-        if self.rect.bottom < 0:
-            self.alive = False
-            return
-
-        for shield in self.game.shields:
-            if self.rect.colliderect(shield.rect):
-                for p in (
-                    (self.rect.centerx, self.rect.top + 2),
-                    self.rect.center,
-                    (self.rect.centerx, self.rect.bottom - 2)
-                ):
-                    if shield.is_solid_at(p):
-                        shield.damage(p, 8)
-                        self.game.explosion(p, (0, 255, 150), 6, 80)
-                        self.game.sfx.play('shield', 0.4)
-                        self.alive = False
-                        return
-
-        for inv in self.game.invaders.invaders:
-            if inv.alive and self.rect.colliderect(inv.rect):
-                self.game.kill_invader(inv)
-                self.alive = False
-                return
-
-        if self.game.ufo and self.rect.colliderect(self.game.ufo.rect):
-            self.game.hit_ufo()
-            self.alive = False
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, self.rect, border_radius=4)
 
 
-class Bomb:
-    def __init__(self, x, y, game):
-        self.rect = pygame.Rect(int(x) - 5, int(y), 10, 20)
-        self.vel = pygame.Vector2(0, 170 + game.level * 12)
-        self.alive = True
-        self.game = game
+class Barrier:
+    def __init__(self, x, y, rows, cols, hp, block_size):
+        self.x = x
+        self.y = y
+        self.rows = rows
+        self.cols = cols
+        self.block_size = block_size
+        pattern = shield_pattern(rows, cols)
+        self.grid = [[hp if pattern[r][c] else 0 for c in range(cols)] for r in range(rows)]
 
-    def update(self, dt):
-        self.rect.y += int(round(self.vel.y * dt))
+    def hit(self, rect):
+        hit_any = False
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if self.grid[r][c] > 0:
+                    bx = self.x + c * self.block_size
+                    by = self.y + r * self.block_size
+                    block = pygame.Rect(bx, by, self.block_size, self.block_size)
+                    if block.colliderect(rect):
+                        self.grid[r][c] -= 1
+                        hit_any = True
+        return hit_any
 
-        if self.rect.top > HEIGHT:
-            self.alive = False
-            return
-
-        for shield in self.game.shields:
-            if self.rect.colliderect(shield.rect):
-                for p in (
-                    (self.rect.centerx, self.rect.top + 2),
-                    self.rect.center,
-                    (self.rect.centerx, self.rect.bottom - 2)
-                ):
-                    if shield.is_solid_at(p):
-                        shield.damage(p, 9)
-                        self.game.explosion(p, (0, 255, 150), 8, 90)
-                        self.game.sfx.play('shield', 0.45)
-                        self.alive = False
-                        return
-
-        if self.game.player.invuln <= 0 and self.rect.colliderect(self.game.player.rect):
-            self.game.player.hit()
-            self.alive = False
-            return
+    def draw(self, screen):
+        colors = {3: (0, 220, 90), 2: (0, 180, 80), 1: (0, 130, 60)}
+        if self.grid[0][0] > 3:  # upgraded hp (4+)
+            colors[4] = (0, 240, 110)
+        for r in range(self.rows):
+            for c in range(self.cols):
+                hp = self.grid[r][c]
+                if hp > 0:
+                    bx = self.x + c * self.block_size
+                    by = self.y + r * self.block_size
+                    pygame.draw.rect(screen, colors.get(hp, (0, 220, 90)),
+                                     (bx, by, self.block_size, self.block_size))
+                    pygame.draw.rect(screen, (0, 255, 120),
+                                     (bx, by, self.block_size, self.block_size), 1)
 
 
 class PowerUp:
-    def __init__(self, x, y, kind, game):
-        self.rect = pygame.Rect(int(x) - 17, int(y), 34, 26)
-        self.base_x = int(x)
-        self.kind = kind
-        self.vel = pygame.Vector2(0, 95)
-        self.alive = True
-        self.t = random.uniform(0, 10)
-        self.sprite = game.powerup_sprites[kind]
-        self.game = game
+    def __init__(self, x, y, ptype, image, speed=2.5):
+        self.x = float(x)
+        self.y = float(y)
+        self.ptype = ptype
+        self.image = image
+        self.rect = image.get_rect()
+        self.rect.x = int(x)
+        self.rect.y = int(y)
+        self.vy = speed
 
     def update(self, dt):
-        self.t += dt
-        self.rect.y += int(self.vel.y * dt)
-        self.rect.x = int(self.base_x + 8 * math.sin(self.t * 3.0) - 17)
-
-        if self.rect.top > HEIGHT:
-            self.alive = False
-            return
-
-        if self.rect.colliderect(self.game.player.rect):
-            self.alive = False
-            self.game.apply_powerup(self.kind, self.rect.center)
-
-
-class UFO:
-    def __init__(self, game, direction):
-        self.game = game
-        self.rect = pygame.Rect(
-            -60 if direction > 0 else WIDTH + 10,
-            46,
-            52,
-            24
-        )
-        self.vel = pygame.Vector2(direction * 120, 0)
-        self.alive = True
-        self.score = random.choice(
-            [50, 100, 150, 300] + ([500] if game.level > 5 else [])
-        )
-        self.sound_timer = 0.5
-
-    def update(self, dt):
-        self.rect.x += int(round(self.vel.x * dt))
-
-        if self.rect.right < 0 or self.rect.left > WIDTH:
-            self.alive = False
-            return
-
-        self.sound_timer -= dt
-        if self.sound_timer <= 0:
-            self.game.sfx.play('ufo', 0.3)
-            self.sound_timer = 0.55
-
-
-class Player:
-    def __init__(self, game):
-        self.game = game
-        self.rect = pygame.Rect(WIDTH // 2 - 20, HEIGHT - 56, 40, 26)
-        self.speed = 340
-        self.cooldown = 0.0
-        self.invuln = 0.0
-
-    def update(self, dt):
-        self.invuln = max(0.0, self.invuln - dt)
-
-        if self.cooldown > 0:
-            self.cooldown -= dt
-
-        keys = pygame.key.get_pressed()
-        dx = 0
-
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            dx -= 1
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            dx += 1
-
-        self.rect.x += int(self.speed * dx * dt)
-
-        if self.rect.left < 0:
-            self.rect.left = 0
-        elif self.rect.right > WIDTH:
-            self.rect.right = WIDTH
-
-        if keys[pygame.K_SPACE] and self.cooldown <= 0:
-            self.shoot()
-
-    def shoot(self):
-        top_y = self.rect.top + 4
-
-        if self.game.double_timer > 0:
-            self.game.bullets.append(Bullet(self.rect.centerx - 12, top_y, self.game))
-            self.game.bullets.append(Bullet(self.rect.centerx + 12, top_y, self.game))
-            delay = 0.3 if self.game.rapid_timer > 0 else 0.6
-        else:
-            self.game.bullets.append(Bullet(self.rect.centerx, top_y, self.game))
-            delay = 0.14 if self.game.rapid_timer > 0 else 0.42
-
-        self.cooldown = delay
-        self.game.sfx.play('shoot', 0.45)
-
-        self.game.particles.append({
-            'pos': pygame.Vector2(self.rect.centerx, top_y),
-            'vel': pygame.Vector2(0, -40),
-            'life': 0.08,
-            'max': 0.08,
-            'color': (200, 255, 255),
-            'size': 4
-        })
-
-    def hit(self):
-        if self.invuln > 0:
-            return
-
-        self.game.lives -= 1
-        self.game.explosion(self.rect.center, (0, 255, 255), 35, 220)
-        self.game.explosion(self.rect.center, (255, 160, 60), 20, 160)
-        self.game.sfx.play('player')
-        self.game.shake = 8
-        self.invuln = 2.0
-
-        if self.game.lives <= 0:
-            self.game.game_over()
+        self.y += self.vy * dt * 60
+        self.rect.y = int(self.y)
 
     def draw(self, screen):
-        if self.invuln > 0 and (pygame.time.get_ticks() // 100) % 2 == 0:
-            return
-
-        screen.blit(self.game.player_sprite, self.rect)
+        screen.blit(self.image, self.rect)
 
 
-class Invader:
-    def __init__(self, x, y, kind):
-        self.rect = pygame.Rect(int(x), int(y), 32, 24)
-        self.kind = kind
-        self.alive = True
-
-
-class Invaders:
-    def __init__(self, level, game):
-        self.game = game
-
-        self.cols = 10
-        self.rows = 5
-
-        if level >= 3:
-            self.rows = 6
-        if level >= 6:
-            self.rows = 7
-        if level >= 10:
-            self.rows = 8
-
-        self.spacing_x = 44
-        self.spacing_y = 36
-
-        total_width = (self.cols - 1) * self.spacing_x
-        self.start_x = (WIDTH - total_width) // 2
-        self.start_y = 80
-
-        self.invaders = []
-
-        for r in range(self.rows):
-            if r == 0:
-                kind = 0
-            elif r < self.rows // 2:
-                kind = 1
-            else:
-                kind = 2
-
-            for c in range(self.cols):
-                x = self.start_x + c * self.spacing_x
-                y = self.start_y + r * self.spacing_y
-                self.invaders.append(Invader(x, y, kind))
-
-        self.initial = len(self.invaders)
-        self.dir = 1
-        self.base_speed = 22 + level * 4
-        self.frame = 0
-        self.frame_timer = 0.0
-        self.move_x = 0.0
-        self.bomb_timer = random.uniform(1.5, 3.0)
+class Particle:
+    def __init__(self, x, y, color, vx, vy, life):
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.life = life
+        self.max_life = life
+        self.color = color
 
     def update(self, dt):
-        game = self.game
-
-        if not self.invaders:
-            return
-
-        speed = self.base_speed * (1.0 + 0.9 * (1.0 - len(self.invaders) / self.initial))
-
-        self.move_x += speed * dt * self.dir
-        step = int(self.move_x)
-
-        if step != 0:
-            for inv in self.invaders:
-                inv.rect.x += step
-
-            self.move_x -= step
-
-            left_limit = 30
-            right_limit = WIDTH - 30
-            hit_edge = False
-
-            for inv in self.invaders:
-                if inv.rect.right > right_limit:
-                    inv.rect.right = right_limit
-                    hit_edge = True
-
-                if inv.rect.left < left_limit:
-                    inv.rect.left = left_limit
-                    hit_edge = True
-
-            if hit_edge:
-                self.dir *= -1
-                self.move_x = 0.0
-
-                for inv in self.invaders:
-                    inv.rect.y += 18
-
-                game.sfx.play('step1' if self.dir > 0 else 'step2', 0.45)
-
-                for inv in self.invaders:
-                    for shield in game.shields:
-                        if inv.rect.colliderect(shield.rect):
-                            for p in (
-                                    (inv.rect.centerx, inv.rect.bottom),
-                                    inv.rect.center,
-                                    (inv.rect.centerx, inv.rect.top)
-                            ):
-                                if shield.is_solid_at(p):
-                                    shield.damage(p, 10)
-                                    break
-
-                if any(inv.rect.bottom >= game.player.rect.top - 4 for inv in self.invaders):
-                    game.game_over()
-                    return
-
-        self.frame_timer += dt
-        if self.frame_timer > 0.35:
-            self.frame ^= 1
-            self.frame_timer = 0.0
-
-        self.bomb_timer -= dt
-        if self.bomb_timer <= 0:
-            self.spawn_bomb()
-
-            count_factor = len(self.invaders) / self.initial
-            self.bomb_timer = random.uniform(
-                max(0.35, 2.0 * count_factor - 0.4),
-                max(0.8, 3.4 * count_factor)
-            )
-
-    def spawn_bomb(self):
-        if not self.invaders:
-            return
-
-        candidates = sorted(self.invaders, key=lambda i: i.rect.bottom)
-        n = min(3, len(candidates))
-        inv = random.choice(candidates[-n:])
-
-        self.game.bombs.append(Bomb(inv.rect.centerx, inv.rect.bottom, self.game))
+        self.x += self.vx * dt * 60
+        self.y += self.vy * dt * 60
+        self.life -= dt
 
     def draw(self, screen):
-        for inv in self.invaders:
-            sprite = self.game.invader_sprites[inv.kind][self.frame]
-            screen.blit(sprite, (inv.rect.x, inv.rect.y))
+        if self.life <= 0:
+            return
+        a = int(255 * (self.life / self.max_life))
+        r = max(1, int(4 * (self.life / self.max_life)))
+        pygame.draw.circle(screen, (*self.color, a), (int(self.x), int(self.y)), r)
 
 
-class Game:
-    def __init__(self, screen, sfx, stats):
-        self.screen = screen
-        self.sfx = sfx
-        self.stats = stats
-        self.running = True
-
-        self.bg = make_background()
-
+class Starfield:
+    def __init__(self, w, h):
+        self.w = w
+        self.h = h
+        self.bg = make_background(w, h)
         self.stars = []
         for _ in range(120):
-            layer = random.randint(0, 2)
-
-            r = min(255, 100 + layer * 40)
-            g = min(255, 100 + layer * 40)
-            b = min(255, 160 + layer * 50)
-
-            self.stars.append([
-                random.randint(0, WIDTH),
-                random.randint(0, HEIGHT),
-                8 + layer * 14,
-                (r, g, b),
-                1 + layer // 2
-            ])
-
-        self.fonts = {
-            'small': make_font(18),
-            'medium': make_font(26),
-            'large': make_font(44),
-            'title': make_font(62)
-        }
-
-        self.player_sprite = make_player_sprite()
-        self.mini_player = pygame.transform.scale(self.player_sprite, (20, 13))
-        self.bullet_sprite = make_bullet_sprite((140, 255, 255))
-        self.bomb_sprite = make_bomb_sprite((255, 140, 80))
-        self.ufo_sprite = make_ufo_sprite()
-        self.powerup_sprites = {kind: make_powerup_sprite(kind) for kind in POWERUP_COLORS}
-        self.powerup_weights = {
-            '2X': 25,
-            'RAPID': 25,
-            'DOUBLE': 20,
-            'SHIELD': 15,
-            '1UP': 15
-        }
-
-        self.player = Player(self)
-
-        self.shields = []
-        self.bullets = []
-        self.bombs = []
-        self.powerups = []
-        self.particles = []
-        self.popups = []
-
-        self.ufo = None
-        self.ufo_timer = random.uniform(18, 30)
-
-        self.level = 1
-        self.pending_level = 2
-        self.intro_timer = 0
-
-        self.score = 0
-        self.lives = 3
-        self.kills = 0
-        self.bonus_count = 0
-        self.powerups_collected = 0
-        self.life_threshold = 10000
-
-        self.multiplier = 1
-        self.multi_timer = 0
-        self.rapid_timer = 0
-        self.double_timer = 0
-
-        self.shake = 0
-        self.session_time = 0
-
-        self.setup_level(1)
-        self.state = 'menu'
-
-    def setup_level(self, level):
-        self.level = level
-
-        self.player.rect.x = WIDTH // 2 - self.player.rect.width // 2
-        self.player.rect.y = HEIGHT - 56
-        self.player.cooldown = 0.0
-        self.player.invuln = 1.2
-
-        self.bullets = []
-        self.bombs = []
-        self.powerups = []
-        self.ufo = None
-        self.ufo_timer = random.uniform(15, 28)
-
-        shield_y = HEIGHT - 132
-        xs = [110, 270, 430, 590]
-        self.shields = [Shield(x, shield_y) for x in xs]
-
-        palettes = [
-            [(255, 90, 210), (0, 230, 170), (255, 210, 90)],
-            [(255, 130, 80), (255, 210, 90), (90, 210, 255)],
-            [(90, 255, 255), (255, 90, 120), (255, 255, 90)],
-            [(255, 90, 90), (90, 255, 90), (90, 120, 255)]
-        ]
-
-        self.invader_colors = palettes[(level - 1) % len(palettes)]
-        self.invader_sprites = [
-            [make_invader_sprite(kind, frame, self.invader_colors[kind]) for frame in (0, 1)]
-            for kind in range(3)
-        ]
-
-        self.invaders = Invaders(level, self)
-
-        self.multiplier = 1
-        self.multi_timer = 0
-        self.rapid_timer = 0
-        self.double_timer = 0
-        self.shake = 0
-
-    def start_game(self):
-        self.score = 0
-        self.lives = 3
-        self.kills = 0
-        self.bonus_count = 0
-        self.powerups_collected = 0
-        self.life_threshold = 10000
-        self.session_time = 0
-
-        self.setup_level(1)
-        self.state = 'playing'
-        self.sfx.play('select')
-
-    def handle_event(self, event):
-        if event.type == pygame.QUIT:
-            if self.state in ('playing', 'paused', 'level_intro'):
-                self.game_over()
-            self.running = False
-            return
-
-        if event.type != pygame.KEYDOWN:
-            return
-
-        if event.key == pygame.K_m:
-            self.sfx.toggle()
-            return
-
-        if self.state == 'menu':
-            if event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                self.start_game()
-            elif event.key == pygame.K_ESCAPE:
-                self.running = False
-
-        elif self.state == 'playing':
-            if event.key == pygame.K_p:
-                self.state = 'paused'
-                self.sfx.play('select', 0.3)
-            elif event.key == pygame.K_ESCAPE:
-                self.state = 'paused'
-
-        elif self.state == 'paused':
-            if event.key in (pygame.K_p, pygame.K_RETURN, pygame.K_SPACE, pygame.K_ESCAPE):
-                self.state = 'playing'
-                self.sfx.play('select', 0.3)
-
-        elif self.state == 'gameover':
-            if event.key == pygame.K_RETURN:
-                self.start_game()
-            elif event.key == pygame.K_ESCAPE:
-                self.state = 'menu'
-
-    def update(self, dt):
-        self.update_stars(dt)
-        self.update_particles(dt)
-        self.update_popups(dt)
-
-        if self.state == 'playing':
-            self.session_time += dt
-            self.update_timers(dt)
-            self.player.update(dt)
-
-            if self.state == 'playing':
-                self.invaders.update(dt)
-
-            if self.state == 'playing':
-                for b in self.bullets:
-                    b.update(dt)
-
-                for b in self.bombs:
-                    b.update(dt)
-
-                for bomb in self.bombs:
-                    if not bomb.alive:
-                        continue
-
-                    for bullet in self.bullets:
-                        if bullet.alive and bomb.rect.colliderect(bullet.rect):
-                            bomb.alive = False
-                            bullet.alive = False
-                            self.explosion(bomb.rect.center, (255, 255, 255), 10, 120)
-                            self.sfx.play('shield', 0.35)
-                            break
-
-                if self.state == 'playing':
-                    for p in self.powerups:
-                        p.update(dt)
-
-                    if self.ufo:
-                        self.ufo.update(dt)
-                    else:
-                        self.ufo_timer -= dt
-                        if self.ufo_timer <= 0:
-                            direction = random.choice([-1, 1])
-                            self.ufo = UFO(self, direction)
-                            self.ufo_timer = random.uniform(18, 32)
-
-                self.bullets = [b for b in self.bullets if b.alive]
-                self.bombs = [b for b in self.bombs if b.alive]
-                self.powerups = [p for p in self.powerups if p.alive]
-                self.invaders.invaders = [i for i in self.invaders.invaders if i.alive]
-
-                if self.ufo and not self.ufo.alive:
-                    self.ufo = None
-
-                if self.state == 'playing' and not self.invaders.invaders:
-                    self.level_complete()
-
-        elif self.state == 'level_intro':
-            self.intro_timer -= dt
-            if self.intro_timer <= 0:
-                self.state = 'playing'
-
-    def update_timers(self, dt):
-        if self.multi_timer > 0:
-            self.multi_timer -= dt
-            if self.multi_timer <= 0:
-                self.multi_timer = 0
-                self.multiplier = 1
-
-        if self.rapid_timer > 0:
-            self.rapid_timer = max(0.0, self.rapid_timer - dt)
-
-        if self.double_timer > 0:
-            self.double_timer = max(0.0, self.double_timer - dt)
-
-        if self.shake > 0:
-            self.shake = max(0.0, self.shake - 60 * dt)
-
-    def update_stars(self, dt):
-        for star in self.stars:
-            star[0] -= star[2] * dt
-            if star[0] < -5:
-                star[0] = WIDTH + 5
-                star[1] = random.randint(0, HEIGHT)
-
-    def update_particles(self, dt):
-        if not self.particles:
-            return
-
-        new = []
-
-        for p in self.particles:
-            p['life'] -= dt
-            if p['life'] <= 0:
-                continue
-
-            if 'ring' in p:
-                p['radius'] += 200 * dt
-            else:
-                p['pos'] += p['vel'] * dt
-                p['vel'] *= 0.95
-
-            new.append(p)
-
-        self.particles = new
-
-    def update_popups(self, dt):
-        new = []
-
-        for p in self.popups:
-            p['pos'] += p['vel'] * dt
-            p['life'] -= dt
-            if p['life'] > 0:
-                new.append(p)
-
-        self.popups = new
-
-    def explosion(self, pos, color, n=20, speed=180):
-        for _ in range(n):
-            angle = random.uniform(0, 2 * math.pi)
-            v = random.uniform(30, speed)
-            life = random.uniform(0.25, 0.6)
-
-            self.particles.append({
-                'pos': pygame.Vector2(pos),
-                'vel': pygame.Vector2(math.cos(angle) * v, math.sin(angle) * v),
-                'life': life,
-                'max': life,
-                'color': color,
-                'size': random.randint(2, 5)
+            self.stars.append({
+                "x": random.uniform(0, w), "y": random.uniform(0, h),
+                "b": random.uniform(0.3, 1.0),
+                "tw": random.uniform(0.0, 2 * math.pi),
+                "speed": random.uniform(0.5, 2.5), "r": random.uniform(1, 2.5),
             })
 
-        self.particles.append({
-            'ring': True,
-            'pos': pygame.Vector2(pos),
-            'life': 0.22,
-            'max': 0.22,
-            'color': color,
-            'radius': 4
-        })
+    def draw(self, screen, dt):
+        screen.blit(self.bg, (0, 0))
+        for s in self.stars:
+            s["tw"] += s["speed"] * dt
+            a = int(120 + 120 * math.sin(s["tw"]))
+            pygame.draw.circle(screen, (a, a, a), (int(s["x"]), int(s["y"])), int(s["r"]))
 
-    def add_popup(self, text, pos, color, size='medium', life=1.0):
-        self.popups.append({
-            'text': text,
-            'pos': pygame.Vector2(pos),
-            'vel': pygame.Vector2(0, -35),
-            'color': color,
-            'font': self.fonts.get(size, self.fonts['medium']),
-            'life': life,
-            'max': life
-        })
 
-    def add_score(self, points, pos=None, color=None, apply_mult=True, popup=True):
-        points = int(points * (self.multiplier if apply_mult else 1))
-        self.score += points
+# ---------------------------------------------------------------------------
+# Main game controller
+# ---------------------------------------------------------------------------
+class Game:
+    def __init__(self):
+        self.cfg = load_config()
+        self.progress = load_progress()
+        pygame.init()
+        pygame.mixer.init()
+        self.width = self.cfg["window"]["width"]
+        self.height = self.cfg["window"]["height"]
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption("SPACE INVADERS")
+        self.clock = pygame.time.Clock()
+        self.fps = self.cfg["window"]["fps"]
 
-        if pos is not None and popup and points != 0:
-            if color is None:
-                color = (255, 255, 255)
-            self.add_popup(f"+{points}", pos, color, 'small', 0.8)
+        self.volume = self.cfg["audio"]["volume"]
+        self.music_volume = self.cfg["audio"]["music_volume"]
+        self.sounds = self._build_sounds()
+        self.music = pygame.mixer.Sound(buffer=generate_music())
+        self.music.set_volume(self.music_volume)
+        self.music_on = True
 
-        while self.score >= self.life_threshold:
-            self.lives += 1
-            self.life_threshold += 10000
-            self.bonus_count += 1
-            self.add_popup(
-                "1UP BONUS",
-                (self.player.rect.centerx, self.player.rect.top - 24),
-                (255, 120, 220),
-                'medium',
-                1.2
-            )
-            self.sfx.play('bonus')
+        self.font_big = pygame.font.Font(None, 72)
+        self.font_med = pygame.font.Font(None, 36)
+        self.font_small = pygame.font.Font(None, 24)
 
-    def kill_invader(self, inv):
-        inv.alive = False
-        self.kills += 1
+        self.starfield = Starfield(self.width, self.height)
+        self.alien_images = {
+            0: make_alien(CRAB, (0, 220, 90), scale=3),
+            1: make_alien(SQUID, (180, 60, 220), scale=3),
+            2: make_alien(OCT, (60, 120, 255), scale=3),
+        }
+        self.mystery_image = make_mystery_ship()
+        self.power_images = {
+            "rapid": make_powerup_image("rapid"), "double": make_powerup_image("double"),
+            "shield": make_powerup_image("shield"), "life": make_powerup_image("life"),
+            "score": make_powerup_image("score"),
+        }
 
-        base = (30, 20, 10)[inv.kind]
-        color = self.invader_colors[inv.kind]
+        self.state = "MENU"
+        self.level = 1
+        self.score = 0
+        self.combo = 0
+        self.multiplier = 1.0
+        self.lives = self.cfg["player"]["lives"]
+        self.shake = 0.0
+        self.level_clear_bonus = 0
+        self.last_bonus = 0
+        self.last_credits_earned = 0
+        self.credits_awarded = False
+        self.shop_index = 0
+        self.shop_keys = list(self.cfg["upgrades"].keys())
+        self.reset_game()
 
-        self.explosion(inv.rect.center, color, 22, 170)
-        self.add_score(base, inv.rect.center, color)
-        self.sfx.play('hit')
+    # -- audio ------------------------------------------------------------
+    def _build_sounds(self):
+        def S(buf, vol=1.0):
+            snd = pygame.mixer.Sound(buffer=buf)
+            snd.set_volume(self.volume * vol)
+            return snd
+        return {
+            "shoot": S(gen_tone(700, 0.08, wave="square", vol=0.5)),
+            "alien_hit": S(gen_tone(220, 0.12, wave="square", vol=0.5)),
+            "player_hit": S(gen_noise(0.35, vol=0.6)),
+            "mystery": S(gen_sweep(400, 900, 0.5, vol=0.4)),
+            "powerup": S(gen_tone(600, 0.18, wave="sine", vol=0.6)),
+            "levelup": S(gen_tone(400, 0.25, wave="saw", vol=0.6, decay=False)),
+            "gameover": S(gen_tone(160, 0.6, wave="saw", vol=0.5, decay=False)),
+            "buy": S(gen_tone(520, 0.15, wave="square", vol=0.6)),
+            "deny": S(gen_tone(180, 0.2, wave="square", vol=0.5)),
+        }
 
-        chance = min(0.12, 0.04 + 0.005 * self.level)
-        if random.random() < chance:
-            kind = random.choices(
-                list(self.powerup_weights.keys()),
-                weights=list(self.powerup_weights.values())
-            )[0]
+    # -- upgrade system ---------------------------------------------------
+    def apply_upgrades(self):
+        ups = self.progress.get("upgrades", {})
+        self.starting_lives = self.cfg["player"]["lives"] + ups.get("extra_lives", 0)
+        self.lives = self.starting_lives
+        self.eff_fire_cooldown = self.cfg["player"]["fire_cooldown"] * (1 - 0.08 * ups.get("fire_rate", 0))
+        self.eff_bullet_speed = self.cfg["player"]["bullet_speed"] * (1 + 0.10 * ups.get("bullet_speed", 0))
+        self.eff_player_speed = self.cfg["player"]["speed"] * (1 + 0.08 * ups.get("player_speed", 0))
+        self.eff_barrier_hp = self.cfg["barrier"]["hp"] + ups.get("barrier_hp", 0)
+        self.eff_combo_step = self.cfg["bonus"]["combo_mult_step"] + 0.05 * ups.get("combo_bonus", 0)
+        self.eff_combo_max = self.cfg["bonus"]["combo_max_mult"] + 0.5 * ups.get("combo_bonus", 0)
+        self.eff_score_mult = 1 + 0.10 * ups.get("score_bonus", 0)
+        self.start_shield_charges = ups.get("start_shield", 0)
+        self.eff_mystery_chance = self.cfg["bonus"]["mystery_chance"] * (1 + 0.35 * ups.get("mystery_bonus", 0))
+        self.eff_mystery_bonus = 1 + 0.25 * ups.get("mystery_bonus", 0)
+        self.eff_powerup_chance = self.cfg["bonus"]["powerup_chance"] + 0.02 * ups.get("powerup_luck", 0)
 
-            if kind == '1UP' and self.lives >= 8:
-                kind = '2X'
+    def upgrade_cost(self, key):
+        u = self.cfg["upgrades"][key]
+        rank = self.progress.get("upgrades", {}).get(key, 0)
+        return int(u["base_cost"] * (u["cost_mult"] ** rank))
 
-            self.powerups.append(PowerUp(inv.rect.centerx, inv.rect.top, kind, self))
+    def buy_upgrade(self, key):
+        u = self.cfg["upgrades"][key]
+        rank = self.progress.get("upgrades", {}).get(key, 0)
+        cost = self.upgrade_cost(key)
+        if rank < u["max"] and self.progress.get("credits", 0) >= cost:
+            self.progress.setdefault("upgrades", {})[key] = rank + 1
+            self.progress["credits"] -= cost
+            save_progress(self.progress)
+            self.sounds["buy"].play()
+            return True
+        self.sounds["deny"].play()
+        return False
 
-    def hit_ufo(self):
-        if not self.ufo:
+    def award_credits(self):
+        if self.credits_awarded:
             return
+        earned = int(self.score / 150) + self.level * 8 + self.kills // 5 + int(self.combo / 5)
+        self.progress["credits"] = self.progress.get("credits", 0) + earned
+        self.last_credits_earned = earned
+        self.credits_awarded = True
 
-        score = self.ufo.score
-        pos = self.ufo.rect.center
+    # -- level / game setup -----------------------------------------------
+    def reset_game(self):
+        self.score = 0
+        self.combo = 0
+        self.multiplier = 1.0
+        self.shots_fired = 0
+        self.kills = 0
+        self.elapsed = 0.0
+        self.last_bonus = 0
+        self.credits_awarded = False
+        self.apply_upgrades()
+        self.player = Player(self.cfg, self.height, {
+            "speed": self.eff_player_speed,
+            "fire_cooldown": self.eff_fire_cooldown,
+            "bullet_speed": self.eff_bullet_speed,
+            "lives": self.lives,
+        })
+        self.start_level()
 
-        self.explosion(pos, (255, 120, 120), 35, 220)
-        self.add_score(score, pos, (255, 120, 120), apply_mult=False)
-        self.add_popup(f"UFO +{score}", pos, (255, 120, 120), 'medium')
-        self.sfx.play('bonus')
-        self.bonus_count += 1
-        self.ufo.alive = False
+    def start_level(self):
+        self.level_clear_bonus = 0
+        self.player.reset_timers()
+        self.player.lives = self.lives
+        self.player.shield = self.start_shield_charges
+        self.aliens = []
+        self.alien_bullets = []
+        self.player_bullets = []
+        self.powerups = []
+        self.particles = []
+        self.mystery = None
+        self.mystery_timer = 0.0
+        self.fleet_dir = 1
+        self.fleet_timer = 0.0
+        self.fleet_down = False
 
-    def apply_powerup(self, kind, pos):
-        self.powerups_collected += 1
-        color = POWERUP_COLORS[kind]
+        rows = min(self.cfg["alien"]["max_rows"], 4 + self.level // 2)
+        cols = min(self.cfg["alien"]["max_cols"], 10 + self.level // 3)
+        spacing_x = 52
+        spacing_y = 46
+        start_x = (self.width - (cols - 1) * spacing_x) // 2
+        start_y = 70
+        pts_map = self.cfg["alien"]["points"]
+        for r in range(rows):
+            for c in range(cols):
+                typ = 2 if r == 0 else (1 if r < 3 else 0)
+                img = self.alien_images[typ]
+                pts = pts_map["crab"] if typ == 0 else pts_map["squid"] if typ == 1 else pts_map["octopus"]
+                self.aliens.append(Alien(start_x + c * spacing_x, start_y + r * spacing_y, typ, img, pts, self.level))
 
-        self.add_score(25, pos, color, apply_mult=False, popup=False)
+        self.barriers = []
+        bar_count = self.cfg["barrier"]["count"]
+        bs = self.cfg["barrier"]["block_size"]
+        bar_rows = self.cfg["barrier"]["rows"]
+        bar_cols = self.cfg["barrier"]["cols"]
+        bar_w = bar_cols * bs
+        gap = self.width // (bar_count + 1)
+        for i in range(bar_count):
+            bx = gap * (i + 1) - bar_w // 2
+            by = self.height - 180
+            self.barriers.append(Barrier(bx, by, bar_rows, bar_cols, self.eff_barrier_hp, bs))
 
-        if kind == '2X':
-            self.multiplier = 2
-            self.multi_timer = 12.0
-            self.add_popup("SCORE 2X", pos, color, 'medium', 1.2)
+        self.speed_mult = 1 + self.cfg["alien"]["speed_per_level"] * (self.level - 1)
+        self.alien_fire_chance = self.cfg["alien"]["fire_chance"] + \
+            self.cfg["alien"]["fire_chance_per_level"] * (self.level - 1)
+        self.alien_bullet_speed = 8 + self.level * 1.2
 
-        elif kind == 'RAPID':
-            self.rapid_timer = 10.0
-            self.add_popup("RAPID FIRE", pos, color, 'medium', 1.2)
+        self.state = "LEVEL_INTRO"
+        self.intro_timer = 1.2
 
-        elif kind == 'DOUBLE':
-            self.double_timer = 15.0
-            self.add_popup("DOUBLE SHOT", pos, color, 'medium', 1.2)
+    def alive_aliens(self):
+        return [a for a in self.aliens if a.alive]
 
-        elif kind == 'SHIELD':
-            for shield in self.shields:
-                shield.repair()
-            self.add_popup("SHIELDS REPAIRED", pos, color, 'medium', 1.2)
+    def fleet_bounds(self):
+        alive = self.alive_aliens()
+        if not alive:
+            return 0, 0, 0, 0
+        xs = [a.x for a in alive]
+        ys = [a.y for a in alive]
+        return min(xs), max(xs), min(ys), max(ys)
 
-        elif kind == '1UP':
-            self.lives += 1
-            self.life_threshold = max(self.life_threshold, self.score + 10000)
-            self.add_popup("EXTRA LIFE", pos, color, 'large', 1.4)
+    # -- main loop ---------------------------------------------------------
+    def run(self):
+        self.music.play(loops=-1)
+        running = True
+        while running:
+            dt = self.clock.tick(self.fps) / 1000.0
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        if self.state == "SHOP":
+                            self.state = "MENU"
+                        else:
+                            running = False
+                    elif event.key == pygame.K_p:
+                        if self.state == "PLAYING":
+                            self.state = "PAUSED"
+                        elif self.state == "PAUSED":
+                            self.state = "PLAYING"
+                    elif event.key == pygame.K_m:
+                        self.music_on = not self.music_on
+                        self.music.set_volume(self.music_volume if self.music_on else 0)
+                    elif event.key == pygame.K_RETURN:
+                        if self.state == "MENU":
+                            self.reset_game()
+                            self.state = "LEVEL_INTRO"
+                        elif self.state == "GAME_OVER":
+                            self.reset_game()
+                            self.state = "LEVEL_INTRO"
+                        elif self.state == "PAUSED":
+                            self.state = "PLAYING"
+                        elif self.state == "SHOP":
+                            self.buy_upgrade(self.shop_keys[self.shop_index])
+                    elif self.state == "MENU" and event.key == pygame.K_u:
+                        self.state = "SHOP"
+                    elif self.state == "SHOP":
+                        if event.key == pygame.K_UP:
+                            self.shop_index = (self.shop_index - 1) % len(self.shop_keys)
+                        elif event.key == pygame.K_DOWN:
+                            self.shop_index = (self.shop_index + 1) % len(self.shop_keys)
+                        elif event.key == pygame.K_b:
+                            self.state = "MENU"
 
-        self.bonus_count += 1
+            keys = pygame.key.get_pressed()
+            if self.state == "PLAYING":
+                self.update(dt, keys)
+            self.draw(dt, keys)
 
-    def level_complete(self):
-        bonus = 100 * self.level
-        self.add_score(bonus, (WIDTH // 2, HEIGHT // 2 - 20), (255, 220, 120), apply_mult=False)
-        self.bonus_count += 1
-        self.sfx.play('level')
+        self._persist_progress()
+        pygame.quit()
 
-        self.pending_level = self.level + 1
-        self.setup_level(self.pending_level)
+    def _persist_progress(self):
+        self.award_credits()
+        self.progress["high_score"] = max(self.progress.get("high_score", 0), self.score)
+        self.progress["best_level"] = max(self.progress.get("best_level", 0), self.level)
+        self.progress["games_played"] = self.progress.get("games_played", 0) + 1
+        self.progress["total_shots"] = self.progress.get("total_shots", 0) + self.shots_fired
+        self.progress["total_kills"] = self.progress.get("total_kills", 0) + self.kills
+        self.progress["total_time"] = self.progress.get("total_time", 0.0) + self.elapsed
+        save_progress(self.progress)
 
-        self.add_popup(
-            f"LEVEL {self.level} CLEARED",
-            (WIDTH // 2, HEIGHT // 2 - 80),
-            (140, 255, 255),
-            'large',
-            2.0
-        )
+    # -- update ------------------------------------------------------------
+    def update(self, dt, keys):
+        self.elapsed += dt
+        self.shake = max(0.0, self.shake - dt * 20)
 
-        self.intro_timer = 2.0
-        self.state = 'level_intro'
+        self.player.update(dt, keys, self.width)
+        if keys[pygame.K_SPACE] and self.player.can_fire():
+            self.fire_player_bullet()
+            self.shots_fired += 1
 
-    def game_over(self):
-        if self.state == 'gameover':
-            return
+        self.update_fleet(dt)
+        if random.random() < self.alien_fire_chance * dt * 60:
+            self.fire_alien_bullet()
 
-        self.state = 'gameover'
-        self.sfx.play('gameover')
+        if self.mystery is None:
+            self.mystery_timer += dt
+            if self.mystery_timer > 6.0:
+                self.mystery_timer = 0.0
+                if random.random() < self.eff_mystery_chance * 20:
+                    self.spawn_mystery()
+        else:
+            self.mystery["x"] += self.mystery["dir"] * self.mystery["speed"] * dt * 60
+            self.mystery["rect"].x = int(self.mystery["x"])
+            if self.mystery["rect"].x < -50 or self.mystery["rect"].x > self.width:
+                self.mystery = None
 
-        self.stats['games_played'] = self.stats.get('games_played', 0) + 1
-        self.stats['best_score'] = max(self.stats.get('best_score', 0), self.score)
-        self.stats['max_level'] = max(self.stats.get('max_level', 0), self.level)
-        self.stats['total_kills'] = self.stats.get('total_kills', 0) + self.kills
-        self.stats['total_bonuses'] = self.stats.get('total_bonuses', 0) + self.bonus_count
-        self.stats['total_powerups'] = self.stats.get('total_powerups', 0) + self.powerups_collected
-        self.stats['total_time'] = self.stats.get('total_time', 0) + self.session_time
-
-        save_stats(self.stats)
-
-    def draw_stars(self):
-        for star in self.stars:
-            x, y, speed, color, size = star
-
-            r = max(0, min(255, color[0]))
-            g = max(0, min(255, color[1]))
-            b = max(0, min(255, color[2]))
-
-            pygame.draw.circle(
-                self.screen,
-                (r, g, b),
-                (int(x), int(y)),
-                size
-            )
-
-    def draw_particles(self):
+        self.update_bullets(dt)
+        self.update_powerups(dt)
         for p in self.particles:
-            alpha = p['life'] / p['max']
+            p.update(dt)
+        self.particles = [p for p in self.particles if p.life > 0]
 
-            if 'ring' in p:
-                radius = int(p['radius'])
-                if radius < 1:
-                    continue
-                width = max(1, int(4 * alpha))
-                pygame.draw.circle(
-                    self.screen,
-                    p['color'],
-                    (int(p['pos'].x), int(p['pos'].y)),
-                    radius,
-                    width
-                )
-            else:
-                size = max(1, int(p['size'] * alpha))
-                pygame.draw.circle(
-                    self.screen,
-                    p['color'],
-                    (int(p['pos'].x), int(p['pos'].y)),
-                    size
-                )
+        # level clear -> advance to next level
+        if not self.alive_aliens():
+            bonus = self.lives * 100 + self.level * 50
+            self.score += bonus
+            self.last_bonus = bonus
+            self.sounds["levelup"].play()
+            self.level += 1
+            self.start_level()
 
-    def draw_popups(self):
-        for p in self.popups:
-            alpha = int(255 * max(0.0, min(1.0, p['life'] / p['max'])))
-            surf = p['font'].render(p['text'], True, p['color'])
-            if alpha < 255:
-                surf.set_alpha(alpha)
-            rect = surf.get_rect(center=(int(p['pos'].x), int(p['pos'].y)))
-            self.screen.blit(surf, rect)
+    def fire_player_bullet(self):
+        self.player.fire()
+        bx = self.player.rect.centerx - 2
+        by = self.player.rect.top - 8
+        speed = self.eff_bullet_speed
+        self.player_bullets.append(Bullet(bx, by, "player", speed, self.width, self.height))
+        if self.player.double_timer > 0:
+            self.player_bullets.append(Bullet(bx - 8, by, "player", speed, self.width, self.height))
+            self.player_bullets.append(Bullet(bx + 8, by, "player", speed, self.width, self.height))
+        self.sounds["shoot"].play()
 
-    def draw_hud(self):
-        bar = pygame.Surface((WIDTH, 38), pygame.SRCALPHA)
-        bar.fill((0, 0, 0, 110))
-        self.screen.blit(bar, (0, 0))
+    def update_fleet(self, dt):
+        alive = self.alive_aliens()
+        if not alive:
+            return
+        speed = self.cfg["alien"]["base_speed"] * self.speed_mult
+        speed *= 1 + (1 - len(alive) / max(1, len(self.aliens))) * 3.0
+        interval = max(0.05, 1.0 / speed)
+        self.fleet_timer += dt
+        if self.fleet_timer >= interval:
+            self.fleet_timer = 0.0
+            step = 12 * self.fleet_dir
+            for a in alive:
+                a.x += step
+                a.rect.x = int(a.x)
+            minx, maxx, _, _ = self.fleet_bounds()
+            if maxx > self.width - 40:
+                self.fleet_dir = -1
+                self.fleet_down = True
+            elif minx < 20:
+                self.fleet_dir = 1
+                self.fleet_down = True
+            if self.fleet_down:
+                self.fleet_down = False
+                for a in alive:
+                    a.y += 18
+                    a.rect.y = int(a.y)
 
-        score_surf = self.fonts['medium'].render(f"SCORE {self.score:06d}", True, (255, 255, 255))
-        self.screen.blit(score_surf, (16, 5))
+    def fire_alien_bullet(self):
+        alive = self.alive_aliens()
+        if not alive:
+            return
+        target = random.choice(alive)
+        self.alien_bullets.append(Bullet(target.rect.centerx, target.rect.bottom,
+                                         "alien", self.alien_bullet_speed, self.width, self.height))
 
-        hi = max(self.stats.get('best_score', 0), self.score)
-        hi_surf = self.fonts['medium'].render(f"HI {hi:06d}", True, (255, 220, 120))
-        self.screen.blit(hi_surf, (WIDTH - hi_surf.get_width() - 16, 5))
+    def spawn_mystery(self):
+        from_left = random.random() < 0.5
+        x = -40 if from_left else self.width + 40
+        rect = self.mystery_image.get_rect()
+        rect.y = 60
+        rect.x = int(x)
+        self.mystery = {"x": float(x), "rect": rect, "dir": 1 if from_left else -1, "speed": 3.5}
+        self.sounds["mystery"].play()
 
-        level_surf = self.fonts['medium'].render(f"LEVEL {self.level}", True, (140, 255, 255))
-        self.screen.blit(level_surf, (WIDTH // 2 - level_surf.get_width() // 2, 5))
+    def update_bullets(self, dt):
+        for b in self.player_bullets:
+            b.update(dt)
+        for b in self.alien_bullets:
+            b.update(dt)
 
-        for i in range(max(0, self.lives)):
-            self.screen.blit(self.mini_player, (18 + i * 26, HEIGHT - 32))
+        for b in list(self.player_bullets):
+            if b.rect.bottom < 0:
+                self.player_bullets.remove(b)
+                continue
+            if self.mystery and b.rect.colliderect(self.mystery["rect"]):
+                pts = int(self.cfg["alien"]["points"]["mystery"] * self.eff_mystery_bonus + self.level * 20)
+                self.score += int(pts * self.multiplier * self.eff_score_mult)
+                self.spawn_particles(self.mystery["rect"].centerx, self.mystery["rect"].centery, (255, 60, 60), 14)
+                self.sounds["alien_hit"].play()
+                self.mystery = None
+                self.player_bullets.remove(b)
+                continue
+            hit = False
+            for a in self.alive_aliens():
+                if b.rect.colliderect(a.rect):
+                    a.alive = False
+                    self.kills += 1
+                    self.combo += 1
+                    self.multiplier = min(self.eff_combo_max, 1 + self.combo * self.eff_combo_step)
+                    gain = int(a.points * self.multiplier * self.eff_score_mult)
+                    self.score += gain
+                    self.spawn_particles(a.rect.centerx, a.rect.centery, (0, 255, 120), 10)
+                    self.sounds["alien_hit"].play()
+                    if random.random() < self.eff_powerup_chance:
+                        self.drop_powerup(a.rect.centerx, a.rect.centery)
+                    self.player_bullets.remove(b)
+                    hit = True
+                    break
+            if hit:
+                continue
+            for bar in self.barriers:
+                if bar.hit(b.rect):
+                    self.player_bullets.remove(b)
+                    break
 
-        x = WIDTH - 210
-        y = 44
+        for b in list(self.alien_bullets):
+            if b.rect.top > self.height:
+                self.alien_bullets.remove(b)
+                continue
+            if b.rect.colliderect(self.player.rect):
+                self.on_player_hit()
+                self.alien_bullets.remove(b)
+                continue
+            for bar in self.barriers:
+                if bar.hit(b.rect):
+                    self.alien_bullets.remove(b)
+                    break
 
-        if self.multi_timer > 0:
-            rect = pygame.Rect(x, y, 62, 22)
-            pygame.draw.rect(self.screen, POWERUP_COLORS['2X'], rect, border_radius=6)
-            text = self.fonts['small'].render(f"2X {int(self.multi_timer)}", True, (0, 0, 0))
-            self.screen.blit(text, text.get_rect(center=rect.center))
-            x += 70
+    def drop_powerup(self, x, y):
+        ptype = random.choice(["rapid", "double", "shield", "life", "score"])
+        img = self.power_images[ptype]
+        self.powerups.append(PowerUp(x, y, ptype, img))
 
-        if self.rapid_timer > 0:
-            rect = pygame.Rect(x, y, 70, 22)
-            pygame.draw.rect(self.screen, POWERUP_COLORS['RAPID'], rect, border_radius=6)
-            text = self.fonts['small'].render(f"SPD {int(self.rapid_timer)}", True, (0, 0, 0))
-            self.screen.blit(text, text.get_rect(center=rect.center))
-            x += 78
+    def on_player_hit(self):
+        if self.player.shield > 0:
+            self.player.shield -= 1
+            self.sounds["powerup"].play()
+            self.shake = 4
+            return
+        self.lives -= 1
+        self.player.lives = self.lives
+        self.shake = 12
+        self.sounds["player_hit"].play()
+        self.spawn_particles(self.player.rect.centerx, self.player.rect.centery, (0, 220, 255), 18)
+        if self.cfg["bonus"]["combo_reset_on_hit"]:
+            self.combo = 0
+            self.multiplier = 1.0
+        if self.lives <= 0:
+            self.state = "GAME_OVER"
+            self.sounds["gameover"].play()
+            self._persist_progress()
 
-        if self.double_timer > 0:
-            rect = pygame.Rect(x, y, 70, 22)
-            pygame.draw.rect(self.screen, POWERUP_COLORS['DOUBLE'], rect, border_radius=6)
-            text = self.fonts['small'].render(f"DUAL {int(self.double_timer)}", True, (0, 0, 0))
-            self.screen.blit(text, text.get_rect(center=rect.center))
-
-    def _overlay(self, alpha=170):
-        s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        s.fill((0, 0, 20, alpha))
-        self.screen.blit(s, (0, 0))
-
-
-    def draw_playfield(self):
-        self.screen.blit(self.bg, (0, 0))
-        self.draw_stars()
-
-        for shield in self.shields:
-            self.screen.blit(shield.shield, shield.rect)
-
+    def update_powerups(self, dt):
         for p in self.powerups:
-            self.screen.blit(p.sprite, p.rect)
+            p.update(dt)
+        for p in list(self.powerups):
+            if p.rect.top > self.height:
+                self.powerups.remove(p)
+                continue
+            if p.rect.colliderect(self.player.rect):
+                self.apply_powerup(p.ptype)
+                self.powerups.remove(p)
 
-        self.invaders.draw(self.screen)
+    def apply_powerup(self, ptype):
+        self.sounds["powerup"].play()
+        if ptype == "rapid":
+            self.player.rapid_timer = self.cfg["player"]["rapid_duration"]
+        elif ptype == "double":
+            self.player.double_timer = self.cfg["player"]["double_duration"]
+        elif ptype == "shield":
+            self.player.shield += 1
+        elif ptype == "life":
+            self.lives += 1
+            self.player.lives = self.lives
+        elif ptype == "score":
+            self.score += 500
 
-        if self.ufo:
-            self.screen.blit(self.ufo_sprite, self.ufo.rect)
+    def spawn_particles(self, x, y, color, count):
+        for _ in range(count):
+            vx = random.uniform(-140, 140)
+            vy = random.uniform(-140, 140)
+            self.particles.append(Particle(x, y, color, vx, vy, random.uniform(0.2, 0.7)))
 
-        for bomb in self.bombs:
-            self.screen.blit(self.bomb_sprite, bomb.rect)
+    # -- drawing ------------------------------------------------------------
+    def draw(self, dt, keys):
+        self.starfield.draw(self.screen, dt)
+        shake_x = random.randint(-int(self.shake), int(self.shake)) if self.shake else 0
+        shake_y = random.randint(-int(self.shake), int(self.shake)) if self.shake else 0
 
-        for bullet in self.bullets:
-            self.screen.blit(self.bullet_sprite, bullet.rect)
+        if self.state == "MENU":
+            self.draw_menu()
+        elif self.state == "SHOP":
+            self.draw_shop()
+        elif self.state == "GAME_OVER":
+            self.draw_game_over()
+        elif self.state == "PAUSED":
+            self.draw_playing(shake_x, shake_y)
+            self.draw_centered_text("PAUSED", self.font_big, (255, 255, 255))
+        elif self.state == "LEVEL_INTRO":
+            self.draw_playing(shake_x, shake_y)
+            self.intro_timer -= dt
+            if self.intro_timer <= 0:
+                self.state = "PLAYING"
+            self.draw_centered_text(f"LEVEL {self.level}", self.font_big, (0, 255, 255))
+            if self.last_bonus > 0:
+                b = self.font_small.render(f"BONUS +{self.last_bonus}", True, (255, 220, 60))
+                self.screen.blit(b, (self.width // 2 - b.get_width() // 2, self.height // 2 + 60))
+        else:
+            self.draw_playing(shake_x, shake_y)
 
-        self.player.draw(self.screen)
-        self.draw_particles()
-        self.draw_popups()
+        pygame.display.flip()
+
+    def draw_playing(self, shake_x, shake_y):
+        for bar in self.barriers:
+            bar.draw(self.screen)
+        for p in self.powerups:
+            p.draw(self.screen)
+        for a in self.alive_aliens():
+            self.screen.blit(a.image, a.rect)
+        if self.mystery:
+            self.screen.blit(self.mystery_image, self.mystery["rect"])
+        self.screen.blit(self.player.image, self.player.rect)
+        for b in self.player_bullets:
+            b.draw(self.screen)
+        for b in self.alien_bullets:
+            b.draw(self.screen)
+        for p in self.particles:
+            p.draw(self.screen)
         self.draw_hud()
 
+    def draw_hud(self):
+        text = f"SCORE {self.score}"
+        s = self.font_med.render(text, True, (255, 255, 255))
+        self.screen.blit(s, (16, 16))
+        s = self.font_small.render(f"LEVEL {self.level}", True, (0, 255, 255))
+        self.screen.blit(s, (16, 58))
+        s = self.font_small.render(f"MULT x{self.multiplier:.1f}  COMBO {self.combo}", True, (255, 220, 60))
+        self.screen.blit(s, (16, 84))
+        for i in range(self.lives):
+            pygame.draw.circle(self.screen, (0, 220, 255), (self.width - 40 - i * 28, 30), 10)
+        hs = self.font_small.render(f"HI {self.progress.get('high_score', 0)}", True, (180, 180, 180))
+        self.screen.blit(hs, (self.width - hs.get_width() - 16, 58))
+        if self.player.shield > 0:
+            pygame.draw.circle(self.screen, (60, 220, 120), (self.width - 40, 58), 10)
+        if self.player.rapid_timer > 0:
+            pygame.draw.circle(self.screen, (255, 180, 40), (self.width - 70, 58), 10)
+        if self.player.double_timer > 0:
+            pygame.draw.circle(self.screen, (80, 200, 255), (self.width - 100, 58), 10)
+
     def draw_menu(self):
-        self.screen.blit(self.bg, (0, 0))
-        self.draw_stars()
+        title = self.font_big.render("SPACE", True, (0, 220, 255))
+        title2 = self.font_big.render("INVADERS", True, (255, 60, 60))
+        self.screen.blit(title, (self.width // 2 - title.get_width() // 2, 120))
+        self.screen.blit(title2, (self.width // 2 - title2.get_width() // 2, 190))
+        for i, img in enumerate(self.alien_images.values()):
+            self.screen.blit(img, (self.width // 2 + i * 90 - 130, 280))
+        hs = self.font_med.render(f"HIGH SCORE: {self.progress.get('high_score', 0)}", True, (255, 255, 255))
+        self.screen.blit(hs, (self.width // 2 - hs.get_width() // 2, 380))
+        cred = self.font_med.render(f"CREDITS: {self.progress.get('credits', 0)}", True, (255, 220, 60))
+        self.screen.blit(cred, (self.width // 2 - cred.get_width() // 2, 430))
+        instr = self.font_small.render("ENTER start  |  U upgrade shop  |  P pause  |  M music  |  ESC quit",
+                                       True, (180, 180, 180))
+        self.screen.blit(instr, (self.width // 2 - instr.get_width() // 2, 490))
+        blink = 120 + 120 * math.sin(pygame.time.get_ticks() / 300)
+        s = self.font_small.render("PRESS ENTER", True, (blink, blink, blink))
+        self.screen.blit(s, (self.width // 2 - s.get_width() // 2, 550))
 
-        title = "SPACE INVADERS"
-        font = self.fonts['title']
-        total_width = sum(font.size(c)[0] for c in title)
+    def draw_shop(self):
+        title = self.font_med.render("UPGRADE SHOP", True, (0, 220, 255))
+        self.screen.blit(title, (self.width // 2 - title.get_width() // 2, 30))
+        cred = self.font_med.render(f"CREDITS: {self.progress.get('credits', 0)}", True, (255, 220, 60))
+        self.screen.blit(cred, (16, 70))
+        hint = self.font_small.render("UP/DOWN select   ENTER buy   ESC/B back", True, (180, 180, 180))
+        self.screen.blit(hint, (16, self.height - 40))
 
-        x = WIDTH // 2 - total_width // 2
-        y = 70
+        y = 120
+        row_h = 54
+        for i, key in enumerate(self.shop_keys):
+            u = self.cfg["upgrades"][key]
+            rank = self.progress.get("upgrades", {}).get(key, 0)
+            maxr = u["max"]
+            cost = self.upgrade_cost(key) if rank < maxr else 0
+            selected = (i == self.shop_index)
+            bg = (30, 40, 70) if selected else (18, 22, 40)
+            pygame.draw.rect(self.screen, bg, (16, y, self.width - 32, row_h - 8), border_radius=8)
+            pygame.draw.rect(self.screen, (0, 220, 255) if selected else (60, 60, 90),
+                             (16, y, self.width - 32, row_h - 8), 2, border_radius=8)
+            name = u["name"]
+            self.screen.blit(self.font_med.render(name, True, (255, 255, 255)), (28, y + 6))
+            self.screen.blit(self.font_small.render(f"RANK {rank}/{maxr}", True, (0, 255, 255)), (28, y + 30))
+            desc = self.font_small.render(u.get("desc", ""), True, (180, 180, 180))
+            self.screen.blit(desc, (250, y + 10))
+            if rank >= maxr:
+                self.screen.blit(self.font_small.render("MAXED", True, (0, 255, 120)), (self.width - 150, y + 14))
+            else:
+                afford = self.progress.get("credits", 0) >= cost
+                col = (255, 220, 60) if afford else (160, 160, 160)
+                self.screen.blit(self.font_small.render(f"{cost} CR", True, col), (self.width - 150, y + 14))
+            y += row_h
 
-        colors = [
-            (0, 255, 255),
-            (255, 120, 220),
-            (255, 220, 120),
-            (120, 255, 180)
-        ]
+    def draw_game_over(self):
+        txt = self.font_big.render("GAME OVER", True, (255, 60, 60))
+        self.screen.blit(txt, (self.width // 2 - txt.get_width() // 2, 140))
+        sc = self.font_med.render(f"FINAL SCORE: {self.score}", True, (255, 255, 255))
+        self.screen.blit(sc, (self.width // 2 - sc.get_width() // 2, 240))
+        lvl = self.font_med.render(f"LEVEL REACHED: {self.level}", True, (0, 255, 255))
+        self.screen.blit(lvl, (self.width // 2 - lvl.get_width() // 2, 290))
+        earned = self.font_med.render(f"CREDITS EARNED: +{self.last_credits_earned}", True, (255, 220, 60))
+        self.screen.blit(earned, (self.width // 2 - earned.get_width() // 2, 340))
+        bal = self.font_small.render(f"CREDIT BALANCE: {self.progress.get('credits', 0)}", True, (200, 200, 200))
+        self.screen.blit(bal, (self.width // 2 - bal.get_width() // 2, 390))
+        stats = self.font_small.render(
+            f"SHOTS {self.shots_fired}   KILLS {self.kills}   ACCURACY "
+            f"{int(100 * self.kills / max(1, self.shots_fired))}%", True, (200, 200, 200))
+        self.screen.blit(stats, (self.width // 2 - stats.get_width() // 2, 430))
+        hs = self.font_med.render(f"HIGH SCORE: {self.progress.get('high_score', 0)}", True, (255, 255, 255))
+        self.screen.blit(hs, (self.width // 2 - hs.get_width() // 2, 480))
+        blink = 120 + 120 * math.sin(pygame.time.get_ticks() / 300)
+        s = self.font_small.render("PRESS ENTER TO RETRY   |   U SHOP", True, (blink, blink, blink))
+        self.screen.blit(s, (self.width // 2 - s.get_width() // 2, 540))
 
-        for i, c in enumerate(title):
-            shadow = font.render(c, True, (0, 0, 0))
-            surf = font.render(c, True, colors[i % len(colors)])
-            self.screen.blit(shadow, (x + 3, y + 3))
-            self.screen.blit(surf, (x, y))
-            x += font.size(c)[0]
-
-        for kind in range(3):
-            frame = (pygame.time.get_ticks() // 400) % 2
-            sprite = self.invader_sprites[kind][frame]
-            self.screen.blit(sprite, (WIDTH // 2 - 78 + kind * 50, 175))
-
-        lines = [
-            f"BEST SCORE: {self.stats.get('best_score', 0)}",
-            f"GAMES: {self.stats.get('games_played', 0)}   MAX LEVEL: {self.stats.get('max_level', 0)}",
-            f"KILLS: {self.stats.get('total_kills', 0)}   BONUS: {self.stats.get('total_bonuses', 0)}",
-            f"TIME: {int(self.stats.get('total_time', 0)) // 60}m {int(self.stats.get('total_time', 0)) % 60}s"
-        ]
-
-        y = 250
-        for line in lines:
-            surf = self.fonts['medium'].render(line, True, (220, 220, 255))
-            self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, y))
-            y += 36
-
-        instr = [
-            "ARROWS / A D  MOVE",
-            "SPACE  SHOOT",
-            "P  PAUSE    M  MUTE"
-        ]
-
-        y = 430
-        for line in instr:
-            surf = self.fonts['small'].render(line, True, (180, 180, 220))
-            self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, y))
-            y += 26
-
-        if (pygame.time.get_ticks() // 500) % 2 == 0:
-            surf = self.fonts['large'].render("PRESS ENTER TO START", True, (255, 255, 120))
-            self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, 510))
-
-    def draw_pause(self):
-        self.draw_playfield()
-        self._overlay()
-
-        surf = self.fonts['title'].render("PAUSED", True, (255, 255, 255))
-        self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, HEIGHT // 2 - 60))
-
-        surf = self.fonts['medium'].render("P TO RESUME", True, (200, 200, 220))
-        self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, HEIGHT // 2 + 10))
-
-    def draw_gameover(self):
-        self.draw_playfield()
-        self._overlay(180)
-
-        surf = self.fonts['title'].render("GAME OVER", True, (255, 80, 120))
-        self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, 130))
-
-        lines = [
-            f"SCORE: {self.score}",
-            f"BEST: {self.stats.get('best_score', 0)}",
-            f"LEVEL: {self.level}",
-            f"KILLS: {self.kills}   BONUS: {self.bonus_count}"
-        ]
-
-        y = 260
-        for line in lines:
-            surf = self.fonts['medium'].render(line, True, (230, 230, 255))
-            self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, y))
-            y += 40
-
-        if (pygame.time.get_ticks() // 500) % 2 == 0:
-            surf = self.fonts['large'].render("PRESS ENTER TO PLAY AGAIN", True, (255, 255, 120))
-            self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, 470))
-
-        surf = self.fonts['small'].render("ESC FOR MENU", True, (180, 180, 220))
-        self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, 520))
-
-    def draw_level_intro(self):
-        self.draw_playfield()
-        self._overlay(120)
-
-        surf = self.fonts['title'].render(f"LEVEL {self.level}", True, (140, 255, 255))
-        self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, HEIGHT // 2 - 80))
-
-        surf = self.fonts['large'].render("GET READY", True, (255, 255, 255))
-        self.screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, HEIGHT // 2))
-
-    def draw(self):
-        if self.state == 'menu':
-            self.draw_menu()
-        elif self.state == 'playing':
-            self.draw_playfield()
-        elif self.state == 'paused':
-            self.draw_pause()
-        elif self.state == 'gameover':
-            self.draw_gameover()
-        elif self.state == 'level_intro':
-            self.draw_level_intro()
+    def draw_centered_text(self, text, font, color):
+        s = font.render(text, True, color)
+        self.screen.blit(s, (self.width // 2 - s.get_width() // 2, self.height // 2 - s.get_height() // 2))
 
 
 def main():
-    pygame.mixer.pre_init(44100, -16, 2, 512)
-    pygame.init()
-
-    try:
-        pygame.mixer.set_num_channels(16)
-    except Exception:
-        pass
-
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Space Invaders")
-
-    sfx = SFX()
-    stats = load_stats()
-    game = Game(screen, sfx, stats)
-
-    clock = pygame.time.Clock()
-    running = True
-
-    while running:
-        dt = min(0.05, clock.tick(FPS) / 1000.0)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-
-            game.handle_event(event)
-
-            if not game.running:
-                running = False
-
-        if not running:
-            break
-
-        game.update(dt)
-        game.draw()
-        pygame.display.flip()
-
-    pygame.quit()
+    game = Game()
+    game.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
