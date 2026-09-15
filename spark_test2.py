@@ -32,6 +32,7 @@ ValueError: Array must be 2-dimensional for stereo mixer
 Process finished with exit code 1
 '''
 
+# In different location I have provide same spark_invaders_Unlocked_DeepSeek-V4-Flash_1shot_START.py file and I want you to update it to fix the problem .
 
 """
 SPACE INVADERS — fully self-contained pygame game.

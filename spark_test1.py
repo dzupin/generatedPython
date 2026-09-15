@@ -1,3 +1,39 @@
+# PROMPT USED:
+# Write Space Invaders game in python using pygame library, make it visually appealing and polished but make sure to generate all graphic and sound files in python. Don't assume that user can download images and sound from internet, instead all resources for game should be generated in game. Also feel free to use external files (e.g. json) to store game parameters, progress and stats. Make sure game will have barriers for user spaceship to hide, several levels bonus system to keep player engaged. Make sure to include in python generated sound and if possible also music, but music is optional.# Execution inststuction:
+# COMMAND to execute High:
+# /AI/llama.cpp/build/bin/llama-server -ngl 999 --jinja -c 262144  --host 0.0.0.0  --port 5000 -fa 1  --reasoning-preserve --parallel 1 --chat-template-kwargs '{"reasoning_effort":"high"}'  --spec-type draft-dspark   --spec-draft-n-max 3 --fit off  -md /AI/models/dspark-DeepSeek-V4-Flash-0731-BF16.gguf  --model /AI/models/Huihui-DeepSeek-V4-Flash-Q2-0731.gguf# MODELS used:
+# /AI/models/dspark-DeepSeek-V4-Flash-0731-BF16.gguf   and  /AI/models/Huihui-DeepSeek-V4-Flash-Q2-0731.gguf
+#STATS: 12.594 generated tokens, time elapsed  7min:09s  29.33 t/s
+
+#Getting ERROR is source code provided bellow:
+'''
+pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Traceback (most recent call last):
+  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 693, in <module>
+    main()
+  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 690, in main
+    Game().run()
+    ^^^^^^
+  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 341, in __init__
+    self.sfx = make_sfx()
+               ^^^^^^^^^^
+  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 118, in make_sfx
+    sfx["shoot"]     = _array_to_sound(synth_sweep(520, 140, 0.10, 0.28))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 70, in _array_to_sound
+    return pygame.sndarray.make_sound(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/pygame/sndarray.py", line 92, in make_sound
+    return mixer.Sound(array=array)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Array must be 2-dimensional for stereo mixer
+
+Process finished with exit code 1
+'''
+
+# In different location I have provide same spark_invaders_Unlocked_DeepSeek-V4-Flash_1shot_START.py file and I want you to update it to fix the problem .
+
 """
 SPACE INVADERS — fully self-contained pygame game.
 All graphics are drawn procedurally, all sound effects + music are synthesized
@@ -59,11 +95,6 @@ def save_stats(stats):
 def _array_to_sound(arr):
     arr = np.clip(arr, -1.0, 1.0)
     data = (arr * 32767).astype(np.int16)
-    # sndarray.make_sound needs a 2-D (n, 2) array when the mixer is stereo;
-    # duplicate the mono track into both channels if needed.
-    init = pygame.mixer.get_init()  # (freq, size, channels) or None
-    if init is not None and init[2] == 2 and data.ndim == 1:
-        data = np.stack((data, data), axis=1)
     return pygame.sndarray.make_sound(data)
 
 def synth_tone(freq, dur, amp=0.35, kind="square"):
@@ -683,9 +714,7 @@ class Game:
         pygame.quit()
 
 def main():
-    # Don't call pygame.mixer.init() here: Game.__init__ does
-    # pygame.mixer.pre_init(SAMPLE_RATE, -16, 1, 256) and then pygame.init(),
-    # which only works if the mixer hasn't been initialized before that.
+    pygame.mixer.init()
     Game().run()
 
 if __name__ == "__main__":
