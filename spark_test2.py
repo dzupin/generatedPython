@@ -5,33 +5,6 @@
 # /AI/models/dspark-DeepSeek-V4-Flash-0731-BF16.gguf   and  /AI/models/Huihui-DeepSeek-V4-Flash-Q2-0731.gguf
 #STATS: 12.594 generated tokens, time elapsed  7min:09s  29.33 t/s
 
-#Getting ERROR is source code provided bellow:
-'''
-pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
-Hello from the pygame community. https://www.pygame.org/contribute.html
-Traceback (most recent call last):
-  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 693, in <module>
-    main()
-  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 690, in main
-    Game().run()
-    ^^^^^^
-  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 341, in __init__
-    self.sfx = make_sfx()
-               ^^^^^^^^^^
-  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 118, in make_sfx
-    sfx["shoot"]     = _array_to_sound(synth_sweep(520, 140, 0.10, 0.28))
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/QA/generatedPython/spark_complex_spaceInvaders_0shot_01.py", line 70, in _array_to_sound
-    return pygame.sndarray.make_sound(data)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3/dist-packages/pygame/sndarray.py", line 92, in make_sound
-    return mixer.Sound(array=array)
-           ^^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: Array must be 2-dimensional for stereo mixer
-
-Process finished with exit code 1
-'''
-
 # In different location I have provide same spark_invaders_Unlocked_DeepSeek-V4-Flash_1shot_START.py file and I want you to update it to fix the problem .
 
 """
@@ -719,3 +692,32 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+#Getting following ERROR in source code provided above:
+'''
+/usr/bin/python3 /QA/generatedPython/spark_test2.py 
+pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Traceback (most recent call last):
+  File "/QA/generatedPython/spark_test2.py", line 694, in <module>
+    main()
+  File "/QA/generatedPython/spark_test2.py", line 691, in main
+    Game().run()
+    ^^^^^^
+  File "/QA/generatedPython/spark_test2.py", line 342, in __init__
+    self.sfx = make_sfx()
+               ^^^^^^^^^^
+  File "/QA/generatedPython/spark_test2.py", line 119, in make_sfx
+    sfx["shoot"]     = _array_to_sound(synth_sweep(520, 140, 0.10, 0.28))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/QA/generatedPython/spark_test2.py", line 71, in _array_to_sound
+    return pygame.sndarray.make_sound(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/pygame/sndarray.py", line 92, in make_sound
+    return mixer.Sound(array=array)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Array must be 2-dimensional for stereo mixer
+
+Process finished with exit code 1
+'''
